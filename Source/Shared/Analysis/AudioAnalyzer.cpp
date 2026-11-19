@@ -458,7 +458,6 @@ void StreamingAnalyzer::analyseSpace (SignalProfile& p) const
                 int ts = k + 4;
                 while (ts < n - 2 && (envDb[(size_t) ts] - envDb[(size_t) ts + 2]) > 3.0f) ++ts;
                 const float drop = lo - envDb[(size_t) ts];
-                drops.push_back (drop);
 
                 // tail decay until something new starts
                 int te = ts;
@@ -477,13 +476,19 @@ void StreamingAnalyzer::analyseSpace (SignalProfile& p) const
                     if (std::abs (d) > 1.0e-12)
                     {
                         const double slope = (m * sxy2 - sx * sy) / d;
-                        if (slope < -1.0) rts.push_back ((float) juce::jlimit (0.05, 8.0, -60.0 / slope));
+                        if (slope < -1.0)
+                        {
+                            rts.push_back ((float) juce::jlimit (0.05, 8.0, -60.0 / slope));
+                            drops.push_back (drop);
+                        }
                     }
                 }
                 else if (envDb[(size_t) ts] < gate + 3.0f)
                 {
                     rts.push_back (0.08f);   // dropped straight to silence: dry
+                    drops.push_back (drop);
                 }
+                // otherwise other sounds keep playing (dense mix): no reliable cue
                 k = juce::jmax (k + 1, te);
                 continue;
             }

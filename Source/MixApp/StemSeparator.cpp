@@ -27,6 +27,7 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
+#include <juce_core/juce_core.h>
 
 namespace am
 {
@@ -135,8 +136,9 @@ std::vector<StemSeparator::Stem> StemSeparator::separate (const juce::AudioBuffe
     const float* inL = audio.getReadPointer (0);
     const float* inR = audio.getReadPointer (audio.getNumChannels() > 1 ? 1 : 0);
 
-    // chunking: ~30 s cores with 1 s overlap on each side
-    const int core = (int) (30.0 * sampleRate);
+    // chunking: 12-30 s cores (enough chunks to keep every thread busy), 1 s overlap
+    const int perThread = total / juce::jmax (1, numThreads) + 1;
+    const int core = juce::jlimit ((int) (12.0 * sampleRate), (int) (30.0 * sampleRate), perThread);
     const int overlap = (int) (1.0 * sampleRate);
     struct Chunk { int start, end, padStart, padEnd; };
     std::vector<Chunk> chunks;
@@ -228,10 +230,20 @@ std::vector<StemSeparator::Stem> StemSeparator::separate (const juce::AudioBuffe
         }
     };
 
+    // dedicated threads with a large stack: Windows gives only 1 MB to std::thread
+    struct Worker : juce::Thread
+    {
+        explicit Worker (std::function<void()> f) : juce::Thread ("Alpha Monster AI", 64 * 1024 * 1024), fn (std::move (f)) {}
+        void run() override { fn(); }
+        std::function<void()> fn;
+    };
     const int threads = juce::jlimit (1, (int) chunks.size(), numThreads);
-    std::vector<std::thread> pool;
+    std::vector<std::unique_ptr<Worker>> pool;
     for (int i = 0; i < threads; ++i)
-        pool.emplace_back (worker);
+    {
+        pool.push_back (std::make_unique<Worker> (worker));
+        pool.back()->startThread();
+    }
 
     // report progress from the calling thread while workers run
     for (;;)
@@ -254,7 +266,7 @@ std::vector<StemSeparator::Stem> StemSeparator::separate (const juce::AudioBuffe
         std::this_thread::sleep_for (std::chrono::milliseconds (250));
     }
 
-    for (auto& t : pool) t.join();
+    for (auto& t : pool) t->waitForThreadToExit (-1);
 
     if (cancelled.load())
     {

@@ -20,6 +20,7 @@ public:
     static constexpr int baseWidth = 1180, baseHeight = 720;
 
     void paint (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
 
     bool isInterestedInFileDrag (const juce::StringArray&) override { return true; }

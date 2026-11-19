@@ -96,6 +96,20 @@ jobs:
           build/Tools/am_snapshot_artefacts/Release/am_snapshot shots testaudio/ref_master.wav testaudio/my_mix.wav > shots-report.txt
           tail -40 shots-report.txt
 
+      - name: Publish screenshots to the ci-screenshots branch
+        if: github.event_name == 'push'
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          mkdir -p /tmp/shots && cp shots/*.png shots-report.txt /tmp/shots/
+          git checkout --orphan ci-shots-tmp
+          git rm -rfq . > /dev/null
+          mkdir -p macos && cp /tmp/shots/* macos/
+          git add macos && git commit -qm "Screenshots macOS ${GITHUB_SHA::7}"
+          git push -f origin ci-shots-tmp:ci-screenshots-macos
+          git checkout -qf "$GITHUB_SHA"
+
       - uses: actions/upload-artifact@v4
         with:
           name: screenshots-macos
@@ -160,7 +174,7 @@ jobs:
 
       - name: Build
         run: |
-          cmake --build build --config Release --parallel 4 --target AlphaMonsterMaster_VST3 AlphaMonsterMaster_Standalone AlphaMonsterMix am_analyze am_separate am_snapshot
+          cmake --build build --config Release --parallel 4 --target AlphaMonsterMaster_VST3 AlphaMonsterMaster_Standalone AlphaMonsterMix am_analyze am_separate am_separate_avx2 am_snapshot
 
       - name: Test - analysis engine and AI separation
         shell: bash
@@ -171,11 +185,32 @@ jobs:
           build/Tools/am_separate_artefacts/Release/am_separate.exe "model/$MODEL_FILE" testaudio/ref_master.wav sep 2
           ls -la sep
 
+      - name: Test - AI separation with AVX2 (diagnostic)
+        continue-on-error: true
+        shell: bash
+        run: |
+          build/Tools/am_separate_avx2_artefacts/Release/am_separate_avx2.exe "model/$MODEL_FILE" testaudio/ref_master.wav sep_avx2 2
+
       - name: Test - UI snapshots
         shell: bash
         run: |
           build/Tools/am_snapshot_artefacts/Release/am_snapshot.exe shots testaudio/ref_master.wav testaudio/my_mix.wav > shots-report.txt
           tail -20 shots-report.txt
+
+      - name: Publish screenshots to the ci-screenshots branch
+        if: github.event_name == 'push'
+        continue-on-error: true
+        shell: bash
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          mkdir -p /tmp/shots && cp shots/*.png shots-report.txt /tmp/shots/
+          git checkout --orphan ci-shots-tmp
+          git rm -rfq . > /dev/null
+          mkdir -p windows && cp /tmp/shots/* windows/
+          git add windows && git commit -qm "Screenshots Windows ${GITHUB_SHA::7}"
+          git push -f origin ci-shots-tmp:ci-screenshots-windows
+          git checkout -qf "$GITHUB_SHA"
 
       - uses: actions/upload-artifact@v4
         with:

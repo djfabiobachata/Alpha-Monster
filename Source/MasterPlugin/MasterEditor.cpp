@@ -205,6 +205,21 @@ void MasterSurface::paint (juce::Graphics& g)
 
 }
 
+void MasterSurface::paintOverChildren (juce::Graphics& g)
+{
+    auto legendLeft = [&g] (juce::Component& c, const juce::String& t)
+    {
+        auto b = c.getBounds().toFloat();
+        AlphaLookAndFeel::drawLegend (g, t, b.withWidth (70.0f).withX (b.getX() - 8.0f).withHeight (14.0f),
+                                      juce::Justification::centredLeft, 13.0f);
+    };
+    legendLeft (eqKnob, "QUANTITA'");
+    legendLeft (compKnob, "GLUE");
+    legendLeft (widthKnob, "MATCH");
+    legendLeft (driveKnob, "DRIVE");
+    legendLeft (ceilingKnob, "CEILING");
+}
+
 void MasterSurface::resized()
 {
     // header
