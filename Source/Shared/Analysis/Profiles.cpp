@@ -1,8 +1,13 @@
 #include "Profiles.h"
 #include <cmath>
+#include <atomic>
 
 namespace am
 {
+
+static std::atomic<bool> englishUi { false };
+void setEnglish (bool e) { englishUi.store (e); }
+bool isEnglish()         { return englishUi.load(); }
 
 const std::array<float, kNumBands>& bandCentres()
 {
@@ -123,27 +128,27 @@ juce::String SignalProfile::panText() const
 juce::String SignalProfile::widthText() const
 {
     if (isMono)          return "Mono";
-    if (width < 0.25f)   return "Stereo stretto";
-    if (width < 0.45f)   return "Stereo medio";
-    if (width < 0.70f)   return "Stereo ampio";
-    return "Molto ampio";
+    if (width < 0.25f)   return tr ("Stereo stretto", "Narrow stereo");
+    if (width < 0.45f)   return tr ("Stereo medio", "Medium stereo");
+    if (width < 0.70f)   return tr ("Stereo ampio", "Wide stereo");
+    return tr ("Molto ampio", "Very wide");
 }
 
 juce::String SignalProfile::depthText() const
 {
-    if (depth < 0.25f) return "In primo piano";
-    if (depth < 0.45f) return "Vicino";
-    if (depth < 0.65f) return "Medio";
-    if (depth < 0.80f) return "Lontano";
-    return "Molto lontano";
+    if (depth < 0.25f) return tr ("In primo piano", "Upfront");
+    if (depth < 0.45f) return tr ("Vicino", "Close");
+    if (depth < 0.65f) return tr ("Medio", "Middle");
+    if (depth < 0.80f) return tr ("Lontano", "Far");
+    return tr ("Molto lontano", "Very far");
 }
 
 juce::String SignalProfile::reverbText() const
 {
-    if (reverbAmount < 0.15f) return "Secco";
-    if (reverbAmount < 0.35f) return "Poco riverbero";
-    if (reverbAmount < 0.60f) return "Riverbero medio";
-    return "Molto riverbero";
+    if (reverbAmount < 0.15f) return tr ("Secco", "Dry");
+    if (reverbAmount < 0.35f) return tr ("Poco riverbero", "Little reverb");
+    if (reverbAmount < 0.60f) return tr ("Riverbero medio", "Medium reverb");
+    return tr ("Molto riverbero", "Lots of reverb");
 }
 
 //==============================================================================
@@ -151,15 +156,15 @@ juce::String stemName (StemType t)
 {
     switch (t)
     {
-        case StemType::drums:  return "Batteria";
-        case StemType::bass:   return "Basso";
-        case StemType::other:  return "Altro";
-        case StemType::vocals: return "Voce";
-        case StemType::guitar: return "Chitarre";
+        case StemType::drums:  return tr ("Batteria", "Drums");
+        case StemType::bass:   return tr ("Basso", "Bass");
+        case StemType::other:  return tr ("Altro", "Other");
+        case StemType::vocals: return tr ("Voce", "Vocals");
+        case StemType::guitar: return tr ("Chitarre", "Guitars");
         case StemType::piano:  return "Piano/Keys";
         case StemType::numTypes: break;
     }
-    return "Altro";
+    return tr ("Altro", "Other");
 }
 
 juce::String stemKey (StemType t)

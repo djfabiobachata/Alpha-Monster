@@ -1,4 +1,5 @@
 #include "AudioFileUtils.h"
+#include "Profiles.h"
 
 namespace am
 {
@@ -45,14 +46,14 @@ LoadedAudio loadAudioFile (const juce::File& file, double targetRate, double max
     std::unique_ptr<juce::AudioFormatReader> reader (formatManager().createReaderFor (file));
     if (reader == nullptr)
     {
-        r.error = "Formato non supportato o file illeggibile: " + file.getFileName();
+        r.error = tr ("Formato non supportato o file illeggibile: ", "Unsupported format or unreadable file: ") + file.getFileName();
         return r;
     }
 
     const auto len = reader->lengthInSamples;
     if (len <= 0 || (double) len / reader->sampleRate > maxSeconds)
     {
-        r.error = "File vuoto o troppo lungo: " + file.getFileName();
+        r.error = tr ("File vuoto o troppo lungo: ", "Empty or too long file: ") + file.getFileName();
         return r;
     }
 

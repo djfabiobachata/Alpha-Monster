@@ -17,9 +17,11 @@ public:
         {
             if (row >= 0 && row < (int) owner.tracks.size())
             {
+                owner.invalidatePlayer();
                 owner.tracks[(size_t) row].type = (StemType) (category.getSelectedId() - 1);
                 owner.result = {};
                 owner.refreshResult();
+                owner.rebuildPlayer();
             }
         };
         addAndMakeVisible (category);
@@ -86,10 +88,10 @@ MixMainComponent::MixMainComponent()
     analyseButton.onClick = [this] { analyseReference(); };
     openAnalysisButton.onClick = [this] { loadAnalysis(); };
     saveAnalysisButton.onClick = [this] { saveAnalysis(); };
-    loadRefButton.setTooltip ("Carica il brano di riferimento (oppure trascinalo nella finestra)");
-    analyseButton.setTooltip ("Separa gli strumenti del reference con l'IA e misura come sono mixati");
-    openAnalysisButton.setTooltip ("Riapri un'analisi salvata (.amref) senza rifare la separazione");
-    saveAnalysisButton.setTooltip ("Salva l'analisi del reference per usarla di nuovo");
+    loadRefButton.setTooltip ("Load the reference song (or drag it into the window)");
+    analyseButton.setTooltip ("Separate the reference instruments with AI and measure how they are mixed");
+    openAnalysisButton.setTooltip ("Reopen a saved analysis (.amref) without separating again");
+    saveAnalysisButton.setTooltip ("Save the reference analysis to reuse it later");
     analyseButton.getProperties().set ("style", "big");
     addAndMakeVisible (refName);
     refName.fontHeight = 15.0f;
@@ -97,12 +99,16 @@ MixMainComponent::MixMainComponent()
 
     // reference cards
     addAndMakeVisible (mixCard);
-    mixCard.onListen = [this] { play (1); };
+    mixCard.onListen = [this] { openPlayer(); player.showOnlySection (PlayerLane::reference); engine.play(); };
     for (int i = 0; i < 6; ++i)
     {
         addAndMakeVisible (stemCards[(size_t) i]);
         stemCards[(size_t) i].setStem ((StemType) i, nullptr);
-        stemCards[(size_t) i].onListen = [this, i] { play (2 + i); };
+        stemCards[(size_t) i].onListen = [this, i]
+        {
+            openPlayer();
+            player.auditionLane (juce::String ((int) PlayerLane::reference) + "/" + stemName ((StemType) i));
+        };
     }
     mixCard.setMixSummary ({}, {});
 
@@ -114,19 +120,31 @@ MixMainComponent::MixMainComponent()
     modeStereo.setClickingTogglesState (false);
     modeTracks.onClick = [this] { setMode (Mode::tracks); };
     modeStereo.onClick = [this] { setMode (Mode::stereoMix); };
-    modeTracks.setTooltip ("Hai le tracce separate del tuo brano (voce, batteria, basso...): il mix piu' preciso");
-    modeStereo.setTooltip ("Hai solo il mix stereo: Alpha Monster lo separa con l'IA e lo rimixa");
+    modeTracks.setTooltip ("You have the separate tracks of your song (vocals, drums, bass...): the most accurate mix");
+    modeStereo.setTooltip ("You only have the stereo mix: Alpha Monster separates it with AI and remixes it");
     addButton.onClick = [this] { chooseTracks(); };
     removeButton.onClick = [this]
     {
+        invalidatePlayer();
         auto rows = trackList.getSelectedRows();
         for (int i = rows.size(); --i >= 0;)
             tracks.erase (tracks.begin() + rows[i]);
         result = {};
+        updateOriginalMix();
         refreshTracks();
         refreshResult();
+        rebuildPlayer();
     };
-    clearButton.onClick = [this] { tracks.clear(); result = {}; refreshTracks(); refreshResult(); };
+    clearButton.onClick = [this]
+    {
+        invalidatePlayer();
+        tracks.clear();
+        result = {};
+        updateOriginalMix();
+        refreshTracks();
+        refreshResult();
+        rebuildPlayer();
+    };
     loadMixButton.onClick = [this] { chooseStereoMix(); };
     trackList.setRowHeight (28);
     trackList.setMultipleSelectionEnabled (true);
@@ -148,12 +166,12 @@ MixMainComponent::MixMainComponent()
         s.setTooltip (tip);
         addAndMakeVisible (s);
     };
-    knob (levelKnob, 0, 100, 100, "%", "Quanto seguire i volumi relativi del reference");
-    knob (eqKnob, 0, 100, 70, "%", "Quanto avvicinare il timbro (EQ) di ogni strumento");
-    knob (dynKnob, 0, 100, 60, "%", "Quanto avvicinare la dinamica (compressione)");
-    knob (spaceKnob, 0, 100, 100, "%", "Quanto seguire pan e larghezza stereo");
-    knob (reverbKnob, 0, 100, 80, "%", "Quanto seguire profondita' e riverbero");
-    knob (targetKnob, -24, -8, -16, " LUFS", "Loudness del mix (pre-master). Lascia spazio al mastering: -16..-14 LUFS");
+    knob (levelKnob, 0, 100, 100, "%", "How closely to follow the reference level balance");
+    knob (eqKnob, 0, 100, 70, "%", "How closely to match the tone (EQ) of each instrument");
+    knob (dynKnob, 0, 100, 60, "%", "How closely to match the dynamics (compression)");
+    knob (spaceKnob, 0, 100, 100, "%", "How closely to follow pan and stereo width");
+    knob (reverbKnob, 0, 100, 80, "%", "How closely to follow depth and reverb");
+    knob (targetKnob, -24, -8, -16, " LUFS", "Loudness of the mix (pre-master). Leave room for mastering: -16..-14 LUFS");
     addAndMakeVisible (mixButton);
     mixButton.getProperties().set ("style", "big");
     mixButton.onClick = [this] { runMix(); };
@@ -163,35 +181,38 @@ MixMainComponent::MixMainComponent()
     // result
     addAndMakeVisible (resultPanel);
     addAndMakeVisible (spectrum);
-    spectrum.caption = "REFERENCE (crema)  -  PRIMA (rosso)  -  DOPO (ciano)";
+    spectrum.caption = "REFERENCE (cream)  -  BEFORE (red)  -  AFTER (cyan)";
     spectrum.setRange (-42.0f, 12.0f);
     addAndMakeVisible (resultInfo);
     resultInfo.fontHeight = 13.0f;
-    for (auto* b : { &exportButton, &playButton, &stopButton })
+    for (auto* b : { &exportButton, &playerButton, &playButton, &rewindButton })
         addAndMakeVisible (b);
     exportButton.getProperties().set ("style", "big");
+    playerButton.getProperties().set ("style", "big");
     exportButton.onClick = [this] { exportResults(); };
-    exportButton.setTooltip ("Salva il mix (WAV 24 bit), le tracce processate e il report con tutti i parametri");
-    playButton.onClick = [this] { play (playSource.getSelectedId()); };
-    stopButton.onClick = [this] { stopPlayback(); };
-    addAndMakeVisible (playSource);
+    exportButton.setTooltip ("Save the mix (24-bit WAV), the processed tracks and the report with every parameter");
+    playerButton.onClick = [this] { openPlayer(); };
+    playerButton.setTooltip ("Open the player: waveforms of the reference, your song and the result, with mute / solo");
+    playButton.onClick = [this] { engine.togglePlay(); };
+    playButton.setTooltip ("Play / pause (what is enabled in the player)");
+    rewindButton.onClick = [this] { engine.setPositionSec (0.0); };
 
     addAndMakeVisible (statusLine);
     statusLine.fontHeight = 14.0f;
 
     // audio
-    sourcePlayer.setSource (&transport);
+    sourcePlayer.setSource (&engine);
     const auto err = deviceManager.initialiseWithDefaultDevices (0, 2);
     audioReady = err.isEmpty() && deviceManager.getCurrentAudioDevice() != nullptr;
     if (audioReady) deviceManager.addAudioCallback (&sourcePlayer);
 
     const auto model = StemSeparator::findModelFile();
     modelLed.setOn (model.existsAsFile());
-    modelLed.setLabel (model.existsAsFile() ? "MODELLO IA PRONTO" : "MODELLO IA DA SCARICARE");
+    modelLed.setLabel (model.existsAsFile() ? "AI MODEL READY" : "AI MODEL NOT INSTALLED");
 
     status ("> ALPHA MONSTER MIX v" AM_VERSION_STRING);
-    status ("> 1) CARICA REFERENCE  2) ANALIZZA  3) aggiungi le tue tracce  4) MIXA");
-    if (! audioReady) status ("!Nessuna uscita audio disponibile: l'ascolto e' disattivato.");
+    status ("> 1) LOAD REFERENCE  2) ANALYSE  3) add your tracks  4) MIX  5) PLAYER to listen and compare");
+    if (! audioReady) status ("!No audio output available: playback is disabled.");
 
     setMode (Mode::tracks);
     refreshReference();
@@ -204,10 +225,11 @@ MixMainComponent::~MixMainComponent()
 {
     stopTimer();
     job.reset();
-    transport.setSource (nullptr);
+    engine.clearLanes();
     sourcePlayer.setSource (nullptr);
     deviceManager.removeAudioCallback (&sourcePlayer);
     download.reset();
+    playerWindow.reset();
 }
 
 //==============================================================================
@@ -234,11 +256,11 @@ void MixMainComponent::paintOverChildren (juce::Graphics& g)
         auto b = c.getBounds().toFloat();
         AlphaLookAndFeel::drawLegend (g, t, b.withY (b.getY() - 15.0f).withHeight (14.0f), juce::Justification::centred, 13.0f);
     };
-    legend (levelKnob, "LIVELLI");
+    legend (levelKnob, "LEVELS");
     legend (eqKnob, "EQ");
-    legend (dynKnob, "DINAMICA");
-    legend (spaceKnob, "SPAZIO");
-    legend (reverbKnob, "RIVERBERO");
+    legend (dynKnob, "DYNAMICS");
+    legend (spaceKnob, "SPACE");
+    legend (reverbKnob, "REVERB");
     legend (targetKnob, "TARGET");
 
     if (job != nullptr)
@@ -290,7 +312,7 @@ void MixMainComponent::resized()
             clearButton.setBounds ({});
         }
         c.removeFromTop (6);
-        songHint.setBounds (c.removeFromBottom (44));
+        songHint.setBounds (c.removeFromBottom (54));
         c.removeFromBottom (4);
         trackList.setBounds (c);
     }
@@ -318,12 +340,13 @@ void MixMainComponent::resized()
     resultPanel.setBounds (924, y2, getWidth() - 936, h2);
     {
         auto c = resultPanel.getContentBounds() + resultPanel.getPosition();
-        auto bottom = c.removeFromBottom (34);
+        auto bottom = c.removeFromBottom (36);
         exportButton.setBounds (bottom.removeFromLeft (120).reduced (2));
         bottom.removeFromLeft (8);
-        stopButton.setBounds (bottom.removeFromRight (64).reduced (2));
-        playButton.setBounds (bottom.removeFromRight (64).reduced (2));
-        playSource.setBounds (bottom.reduced (4, 4));
+        playerButton.setBounds (bottom.removeFromLeft (120).reduced (2));
+        bottom.removeFromLeft (8);
+        rewindButton.setBounds (bottom.removeFromLeft (44).reduced (2));
+        playButton.setBounds (bottom.removeFromLeft (90).reduced (2));
         c.removeFromBottom (6);
         spectrum.setBounds (c.removeFromLeft (c.getWidth() * 55 / 100));
         c.removeFromLeft (6);
@@ -343,10 +366,10 @@ bool MixMainComponent::startJob (BackgroundJob::Work work, std::function<void()>
 {
     if (job != nullptr)
     {
-        status ("!Attendi: c'e' gia' un'operazione in corso.");
+        status ("!Please wait: another operation is running.");
         return false;
     }
-    stopPlayback();
+    invalidatePlayer();   // buffers may change while the job runs
     juce::Component::SafePointer<MixMainComponent> safe (this);
     job = std::make_unique<BackgroundJob> (std::move (work), [safe, done]
     {
@@ -354,6 +377,7 @@ bool MixMainComponent::startJob (BackgroundJob::Work work, std::function<void()>
         safe->job.reset();
         safe->setBusy (false);
         if (done) done();
+        safe->rebuildPlayer();
     });
     setBusy (true);
     job->startThread (juce::Thread::Priority::normal);
@@ -381,13 +405,14 @@ void MixMainComponent::timerCallback()
     else if (download != nullptr)
     {
         progressValue = downloadProgress.load();
-        progressBar.setTextToDisplay ("Download modello IA: " + juce::String ((int) (progressValue * 100.0)) + "%");
+        progressBar.setTextToDisplay ("Downloading AI model: " + juce::String ((int) (progressValue * 100.0)) + "%");
     }
     else
     {
         progressBar.setTextToDisplay ({});
     }
-    playButton.setToggleState (transport.isPlaying(), juce::dontSendNotification);
+    playButton.setToggleState (engine.isPlaying(), juce::dontSendNotification);
+    playButton.setButtonText (engine.isPlaying() ? "PAUSE" : "PLAY");
 }
 
 //==============================================================================
@@ -397,10 +422,10 @@ void MixMainComponent::setMode (Mode m)
     modeTracks.setToggleState (m == Mode::tracks, juce::dontSendNotification);
     modeStereo.setToggleState (m == Mode::stereoMix, juce::dontSendNotification);
     songHint.setLines (m == Mode::tracks
-        ? juce::StringArray { "Aggiungi le tracce/stem del tuo brano (o trascinale qui).",
-                              "La categoria viene proposta dal nome: correggila se serve." }
-        : juce::StringArray { "Carica il tuo mix stereo: verra' separato con l'IA in",
-                              "voce, batteria, basso, chitarre, piano e altro, poi rimixato." });
+        ? juce::StringArray { "Add the tracks / stems of your song (or drag them here).",
+                              "The category is guessed from the file name: correct it if needed." }
+        : juce::StringArray { "Load your stereo mix: it will be separated with AI into",
+                              "vocals, drums, bass, guitars, piano and other, then remixed." });
     resized();
     repaint();
 }
@@ -426,7 +451,7 @@ void MixMainComponent::filesDropped (const juce::StringArray& files, int x, int 
 //==============================================================================
 void MixMainComponent::chooseReference()
 {
-    chooser = std::make_unique<juce::FileChooser> ("Scegli il brano di riferimento",
+    chooser = std::make_unique<juce::FileChooser> ("Choose the reference song",
                                                    juce::File::getSpecialLocation (juce::File::userMusicDirectory), supportedFileWildcard());
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                           [this] (const juce::FileChooser& fc)
@@ -439,16 +464,16 @@ void MixMainComponent::loadReference (const juce::File& file)
 {
     auto loaded = std::make_shared<LoadedAudio>();
     auto prof = std::make_shared<SignalProfile>();
-    status ("> Carico il reference: " + file.getFileName());
+    status ("> Loading the reference: " + file.getFileName());
     startJob ([file, loaded, prof] (BackgroundJob& j)
     {
-        j.update (-1.0f, "Caricamento reference...");
+        j.update (-1.0f, "Loading reference...");
         *loaded = loadAudioFile (file, StemSeparator::sampleRate);
         if (loaded->ok())
         {
-            j.update (0.5f, "Analisi del mix...");
+            j.update (0.5f, "Analysing the mix...");
             *prof = AudioAnalyzer::analyse (loaded->buffer, StemSeparator::sampleRate,
-                                            [&j] (float p) { return j.update (0.5f + 0.5f * p, "Analisi del mix..."); });
+                                            [&j] (float p) { return j.update (0.5f + 0.5f * p, "Analysing the mix..."); });
         }
     },
     [this, loaded, prof, file]
@@ -462,7 +487,7 @@ void MixMainComponent::loadReference (const juce::File& file)
         result = {};
         refreshReference();
         refreshResult();
-        status ("> Reference caricato. Premi ANALIZZA per separare gli strumenti.");
+        status ("> Reference loaded. Press ANALYSE to separate the instruments.");
     });
 }
 
@@ -476,11 +501,11 @@ bool MixMainComponent::ensureModel (std::function<void()> then)
         juce::Component::SafePointer<MixMainComponent> safe (this);
         juce::AlertWindow::showAsync (juce::MessageBoxOptions()
                                           .withIconType (juce::MessageBoxIconType::QuestionIcon)
-                                          .withTitle ("Modello IA mancante")
-                                          .withMessage ("Per separare gli strumenti serve il modello Demucs v4 (circa 55 MB).\n"
-                                                        "Vuoi scaricarlo adesso?")
-                                          .withButton ("Scarica")
-                                          .withButton ("Annulla"),
+                                          .withTitle ("AI model missing")
+                                          .withMessage ("Separating the instruments needs the Demucs v4 model (about 55 MB).\n"
+                                                        "Download it now?")
+                                          .withButton ("Download")
+                                          .withButton ("Cancel"),
                                       [safe, then] (int r)
         {
             if (safe != nullptr && r == 1) safe->downloadModel (then);
@@ -488,7 +513,7 @@ bool MixMainComponent::ensureModel (std::function<void()> then)
         return false;
     }
 
-    status ("> Carico il modello IA: " + model.getFileName());
+    status ("> Loading the AI model: " + model.getFileName());
     juce::String err;
     if (! separator.loadModel (model, err))
     {
@@ -496,7 +521,7 @@ bool MixMainComponent::ensureModel (std::function<void()> then)
         return false;
     }
     modelLed.setOn (true);
-    modelLed.setLabel ("IA PRONTA (" + juce::String (separator.numSources()) + " STRUMENTI)");
+    modelLed.setLabel ("AI READY (" + juce::String (separator.numSources()) + " INSTRUMENTS)");
     juce::ignoreUnused (then);
     return true;
 }
@@ -508,7 +533,7 @@ void MixMainComponent::downloadModel (std::function<void()> then)
     downloadTarget = folder.getChildFile (StemSeparator::defaultModelFileName());
     afterDownload = std::move (then);
     downloadProgress.store (0.0f);
-    status ("> Download del modello IA in corso...");
+    status ("> Downloading the AI model...");
     setBusy (true);
     download = juce::URL (StemSeparator::modelDownloadUrl (StemSeparator::defaultModelFileName()))
                    .downloadToFile (downloadTarget.withFileExtension ("part"),
@@ -516,7 +541,7 @@ void MixMainComponent::downloadModel (std::function<void()> then)
     if (download == nullptr)
     {
         setBusy (false);
-        status ("!Download non riuscito: controlla la connessione.");
+        status ("!Download failed: check your connection.");
     }
 }
 
@@ -534,21 +559,21 @@ void MixMainComponent::finished (juce::URL::DownloadTask* task, bool success)
         setBusy (false);
         if (ok && downloadTarget.withFileExtension ("part").moveFileTo (downloadTarget))
         {
-            status ("> Modello IA scaricato.");
+            status ("> AI model downloaded.");
             modelLed.setOn (true);
             if (afterDownload) { auto f = afterDownload; afterDownload = nullptr; f(); }
         }
         else
         {
             downloadTarget.withFileExtension ("part").deleteFile();
-            status ("!Download del modello non riuscito. Riprova o copia il file in: " + StemSeparator::userModelFolder().getFullPathName());
+            status ("!Model download failed. Try again or copy the file to: " + StemSeparator::userModelFolder().getFullPathName());
         }
     });
 }
 
 void MixMainComponent::analyseReference()
 {
-    if (! refAudio.ok()) { status ("!Carica prima un reference."); return; }
+    if (! refAudio.ok()) { status ("!Load a reference first."); return; }
     if (! ensureModel ([this] { analyseReference(); })) return;
     startSeparation();
 }
@@ -559,7 +584,7 @@ void MixMainComponent::startSeparation()
     auto profile = std::make_shared<ReferenceMixProfile> (refProfile);
     const int threads = StemSeparator::recommendedThreads();
     const auto t0 = juce::Time::getMillisecondCounterHiRes();
-    status ("> Separazione del reference con l'IA (" + juce::String (threads) + " thread). Puo' richiedere qualche minuto...");
+    status ("> Separating the reference with AI (" + juce::String (threads) + " threads). This can take a few minutes...");
 
     startJob ([this, stems, profile, threads] (BackgroundJob& j)
     {
@@ -570,7 +595,7 @@ void MixMainComponent::startSeparation()
         for (size_t i = 0; i < stems->size(); ++i)
         {
             auto& s = (*stems)[i];
-            if (! j.update (0.85f + 0.15f * (float) i / (float) stems->size(), "Analisi: " + stemName (s.type))) return;
+            if (! j.update (0.85f + 0.15f * (float) i / (float) stems->size(), "Analysing: " + stemName (s.type))) return;
             StemProfile sp;
             sp.type = s.type;
             sp.profile = AudioAnalyzer::analyse (s.audio, StemSeparator::sampleRate);
@@ -581,20 +606,20 @@ void MixMainComponent::startSeparation()
     },
     [this, stems, profile, t0]
     {
-        if (stems->empty()) { status ("!Separazione annullata o non riuscita."); return; }
+        if (stems->empty()) { status ("!Separation cancelled or failed."); return; }
         refStems = std::move (*stems);
         refProfile = *profile;
         result = {};
         refreshReference();
         refreshResult();
-        status ("> Analisi completata in " + juce::String ((juce::Time::getMillisecondCounterHiRes() - t0) / 1000.0, 0) + " s. Ora aggiungi il tuo brano.");
+        status ("> Analysis completed in " + juce::String (juce::roundToInt ((juce::Time::getMillisecondCounterHiRes() - t0) / 1000.0)) + " s. Now add your song.");
     });
 }
 
 //==============================================================================
 void MixMainComponent::chooseTracks()
 {
-    chooser = std::make_unique<juce::FileChooser> ("Scegli le tracce del tuo brano",
+    chooser = std::make_unique<juce::FileChooser> ("Choose the tracks of your song",
                                                    juce::File::getSpecialLocation (juce::File::userMusicDirectory), supportedFileWildcard());
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles
                               | juce::FileBrowserComponent::canSelectMultipleItems,
@@ -621,7 +646,7 @@ void MixMainComponent::addTracks (const juce::Array<juce::File>& files)
     {
         for (int i = 0; i < files.size(); ++i)
         {
-            if (! j.update ((float) i / (float) files.size(), "Caricamento: " + files[i].getFileName())) return;
+            if (! j.update ((float) i / (float) files.size(), "Loading: " + files[i].getFileName())) return;
             auto a = loadAudioFile (files[i], *rateOut);
             if (! a.ok()) { errors->add (a.error); continue; }
             if (*rateOut <= 0.0) *rateOut = a.sampleRate;
@@ -639,15 +664,16 @@ void MixMainComponent::addTracks (const juce::Array<juce::File>& files)
         if (*rateOut > 0.0) projectRate = *rateOut;
         for (auto& t : *loaded) tracks.push_back (std::move (t));
         result = {};
+        updateOriginalMix();
         refreshTracks();
         refreshResult();
-        status ("> " + juce::String ((int) loaded->size()) + " tracce aggiunte (" + juce::String (projectRate / 1000.0, 1) + " kHz).");
+        status ("> " + juce::String ((int) loaded->size()) + " tracks added (" + juce::String (projectRate / 1000.0, 1) + " kHz).");
     });
 }
 
 void MixMainComponent::chooseStereoMix()
 {
-    chooser = std::make_unique<juce::FileChooser> ("Scegli il tuo mix stereo",
+    chooser = std::make_unique<juce::FileChooser> ("Choose your stereo mix",
                                                    juce::File::getSpecialLocation (juce::File::userMusicDirectory), supportedFileWildcard());
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                           [this] (const juce::FileChooser& fc)
@@ -663,46 +689,51 @@ void MixMainComponent::separateStereoMix (const juce::File& file)
 
     auto out = std::make_shared<std::vector<MixTrack>>();
     auto err = std::make_shared<juce::String>();
+    auto original = std::make_shared<juce::AudioBuffer<float>>();
     const int threads = StemSeparator::recommendedThreads();
-    status ("> Separo il tuo mix con l'IA: " + file.getFileName());
+    status ("> Separating your mix with AI: " + file.getFileName());
 
-    startJob ([this, file, out, err, threads] (BackgroundJob& j)
+    startJob ([this, file, out, err, original, threads] (BackgroundJob& j)
     {
-        j.update (-1.0f, "Caricamento del tuo mix...");
+        j.update (-1.0f, "Loading your mix...");
         auto a = loadAudioFile (file, StemSeparator::sampleRate);
         if (! a.ok()) { *err = a.error; return; }
+        *original = a.buffer;
         auto stems = separator.separate (a.buffer, threads, [&j] (float p, const juce::String& m) { return j.update (0.95f * p, m); });
-        if (stems.empty()) { *err = "Separazione annullata."; return; }
+        if (stems.empty()) { *err = "Separation cancelled."; return; }
         for (auto& s : stems)
         {
             const float lufs = AudioAnalyzer::measureLufs (s.audio, StemSeparator::sampleRate);
             if (lufs < -50.0f) continue;   // instrument not present in the song
             MixTrack t;
-            t.name = stemName (s.type) + " (separata)";
+            t.name = stemName (s.type) + " (separated)";
             t.type = s.type;
             t.fromSeparation = true;
             t.audio = std::move (s.audio);
             out->push_back (std::move (t));
         }
     },
-    [this, out, err, file]
+    [this, out, err, file, original]
     {
         if (err->isNotEmpty()) { status ("!" + *err); return; }
         tracks = std::move (*out);
         projectRate = StemSeparator::sampleRate;
+        originalMix = std::move (*original);
+        originalRate = projectRate;
+        originalLufs = AudioAnalyzer::measureLufs (originalMix, originalRate);
         userMixName = file.getFileNameWithoutExtension();
         result = {};
         refreshTracks();
         refreshResult();
-        status ("> Mix separato in " + juce::String ((int) tracks.size()) + " strumenti. Ora premi MIXA.");
+        status ("> Mix separated into " + juce::String ((int) tracks.size()) + " instruments. Now press MIX.");
     });
 }
 
 //==============================================================================
 void MixMainComponent::runMix()
 {
-    if (refProfile.stems.empty()) { status ("!Prima analizza il reference (ANALIZZA) o apri un'analisi salvata."); return; }
-    if (tracks.empty()) { status ("!Aggiungi le tracce del tuo brano o carica il tuo mix stereo."); return; }
+    if (refProfile.stems.empty()) { status ("!Analyse the reference first (ANALYSE) or open a saved analysis."); return; }
+    if (tracks.empty()) { status ("!Add the tracks of your song or load your stereo mix."); return; }
 
     amounts.level = (float) levelKnob.getValue() / 100.0f;
     amounts.eq = (float) eqKnob.getValue() / 100.0f;
@@ -713,7 +744,7 @@ void MixMainComponent::runMix()
 
     auto res = std::make_shared<MixResult>();
     const auto t0 = juce::Time::getMillisecondCounterHiRes();
-    status ("> Mix automatico in corso...");
+    status ("> Automatic mix running...");
     startJob ([this, res] (BackgroundJob& j)
     {
         *res = AutoMixer::run (tracks, refProfile, projectRate, amounts,
@@ -721,20 +752,20 @@ void MixMainComponent::runMix()
     },
     [this, res, t0]
     {
-        if (! res->ok) { status ("!" + (res->error.isNotEmpty() ? res->error : juce::String ("Mix annullato."))); return; }
+        if (! res->ok) { status ("!" + (res->error.isNotEmpty() ? res->error : juce::String ("Mix cancelled."))); return; }
         result = std::move (*res);
         refreshTracks();
         refreshResult();
-        status ("> Mix completato in " + juce::String ((juce::Time::getMillisecondCounterHiRes() - t0) / 1000.0, 0)
-                + " s. Ascolta 'Risultato' e premi ESPORTA.");
+        status ("> Mix completed in " + juce::String (juce::roundToInt ((juce::Time::getMillisecondCounterHiRes() - t0) / 1000.0))
+                + " s. Open the PLAYER to compare, then press EXPORT.");
         for (auto& w : result.warnings) status ("!" + w);
     });
 }
 
 void MixMainComponent::exportResults()
 {
-    if (! result.ok) { status ("!Niente da esportare: esegui prima il mix."); return; }
-    chooser = std::make_unique<juce::FileChooser> ("Scegli la cartella di esportazione",
+    if (! result.ok) { status ("!Nothing to export: run the mix first."); return; }
+    chooser = std::make_unique<juce::FileChooser> ("Choose the export folder",
                                                    lastExportFolder.isDirectory() ? lastExportFolder : juce::File::getSpecialLocation (juce::File::userMusicDirectory));
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
                           [this] (const juce::FileChooser& fc)
@@ -748,22 +779,22 @@ void MixMainComponent::exportResults()
         folder.createDirectory();
 
         bool ok = writeWav (folder.getChildFile ("Mix Alpha Monster.wav"), result.mix, result.sampleRate, 24);
-        auto stemsDir = folder.getChildFile ("Tracce processate");
+        auto stemsDir = folder.getChildFile ("Processed tracks");
         stemsDir.createDirectory();
         for (size_t i = 0; i < tracks.size(); ++i)
             ok &= writeWav (stemsDir.getChildFile (juce::String ((int) i + 1).paddedLeft ('0', 2) + " " + juce::File::createLegalFileName (tracks[i].name) + ".wav"),
                             tracks[i].processed, result.sampleRate, 24);
         ok &= folder.getChildFile ("Report mix.txt").replaceWithText (AutoMixer::buildReport (tracks, refProfile, result, amounts));
-        ok &= folder.getChildFile ("Parametri mix.json").replaceWithText (juce::JSON::toString (AutoMixer::buildJson (tracks, refProfile, result)));
-        status (ok ? "> Esportato in: " + folder.getFullPathName() : "!Errore durante l'esportazione in " + folder.getFullPathName());
+        ok &= folder.getChildFile ("Mix settings.json").replaceWithText (juce::JSON::toString (AutoMixer::buildJson (tracks, refProfile, result)));
+        status (ok ? "> Exported to: " + folder.getFullPathName() : "!Error while exporting to " + folder.getFullPathName());
         if (ok) folder.revealToUser();
     });
 }
 
 void MixMainComponent::saveAnalysis()
 {
-    if (refProfile.stems.empty()) { status ("!Nessuna analisi da salvare."); return; }
-    chooser = std::make_unique<juce::FileChooser> ("Salva l'analisi del reference",
+    if (refProfile.stems.empty()) { status ("!No analysis to save."); return; }
+    chooser = std::make_unique<juce::FileChooser> ("Save the reference analysis",
                                                    juce::File::getSpecialLocation (juce::File::userMusicDirectory)
                                                        .getChildFile (juce::File::createLegalFileName (refProfile.sourceName) + ".amref"),
                                                    "*.amref");
@@ -774,13 +805,13 @@ void MixMainComponent::saveAnalysis()
         if (f == juce::File()) return;
         f = f.withFileExtension ("amref");
         const bool ok = f.replaceWithText (juce::JSON::toString (refProfile.toVar()));
-        status (ok ? "> Analisi salvata: " + f.getFileName() : "!Impossibile salvare " + f.getFullPathName());
+        status (ok ? "> Analysis saved: " + f.getFileName() : "!Could not save " + f.getFullPathName());
     });
 }
 
 void MixMainComponent::loadAnalysis()
 {
-    chooser = std::make_unique<juce::FileChooser> ("Apri un'analisi (.amref)",
+    chooser = std::make_unique<juce::FileChooser> ("Open an analysis (.amref)",
                                                    juce::File::getSpecialLocation (juce::File::userMusicDirectory), "*.amref;*.json");
     chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
                           [this] (const juce::FileChooser& fc)
@@ -788,14 +819,16 @@ void MixMainComponent::loadAnalysis()
         auto f = fc.getResult();
         if (! f.existsAsFile()) return;
         auto p = ReferenceMixProfile::fromVar (juce::JSON::parse (f));
-        if (p.stems.empty() || ! p.mix.valid) { status ("!File di analisi non valido."); return; }
+        if (p.stems.empty() || ! p.mix.valid) { status ("!Invalid analysis file."); return; }
+        invalidatePlayer();
         refProfile = p;
         refAudio = {};
         refStems.clear();
         result = {};
         refreshReference();
         refreshResult();
-        status ("> Analisi caricata: " + refProfile.sourceName + " (l'ascolto del reference non e' disponibile).");
+        rebuildPlayer();
+        status ("> Analysis loaded: " + refProfile.sourceName + " (the reference audio is not available for listening).");
     });
 }
 
@@ -805,9 +838,9 @@ void MixMainComponent::refreshReference()
     if (refProfile.mix.valid)
         refName.setLines ({ "REF: " + refProfile.sourceName + "   " + juce::String (refProfile.mix.durationSec / 60.0f, 1) + " min   "
                             + juce::String (refProfile.mix.integratedLufs, 1) + " LUFS"
-                            + (refProfile.stems.empty() ? "   - premi ANALIZZA" : "   - " + juce::String ((int) refProfile.stems.size()) + " strumenti analizzati") });
+                            + (refProfile.stems.empty() ? "   - press ANALYSE" : "   - " + juce::String ((int) refProfile.stems.size()) + " instruments analysed") });
     else
-        refName.setLines ({ "NESSUN REFERENCE - premi CARICA REFERENCE o trascina un file nella finestra" });
+        refName.setLines ({ "NO REFERENCE - press LOAD REFERENCE or drag a file into the window" });
 
     mixCard.setMixSummary (refProfile.mix, refProfile.sourceName);
     for (int i = 0; i < 6; ++i)
@@ -815,7 +848,6 @@ void MixMainComponent::refreshReference()
         const auto* s = refProfile.find ((StemType) i);
         stemCards[(size_t) i].setStem ((StemType) i, s);
     }
-    refreshPlayerSources();
 }
 
 void MixMainComponent::refreshTracks()
@@ -842,8 +874,8 @@ void MixMainComponent::refreshResult()
     if (refProfile.mix.valid) curves.push_back ({ freqs, norm (refProfile.mix), theme::cream, 2.0f, true, "REFERENCE" });
     if (result.ok)
     {
-        curves.push_back ({ freqs, norm (result.mixBefore), theme::ledRed, 1.5f, false, "PRIMA" });
-        curves.push_back ({ freqs, norm (result.mixAfter), theme::crtTrace, 1.8f, false, "DOPO" });
+        curves.push_back ({ freqs, norm (result.mixBefore), theme::ledRed, 1.5f, false, "BEFORE" });
+        curves.push_back ({ freqs, norm (result.mixAfter), theme::crtTrace, 1.8f, false, "AFTER" });
     }
     spectrum.setCurves (std::move (curves));
 
@@ -851,7 +883,7 @@ void MixMainComponent::refreshResult()
     if (result.ok)
     {
         lines.add ("MIX: " + juce::String (result.mixAfter.integratedLufs, 1) + " LUFS  TP " + juce::String (result.mixAfter.truePeakDb, 1));
-        lines.add ("Larghezza " + juce::String (juce::roundToInt (result.mixAfter.width * 100)) + "% (ref "
+        lines.add ("Width " + juce::String (juce::roundToInt (result.mixAfter.width * 100)) + "% (ref "
                    + juce::String (juce::roundToInt (refProfile.mix.width * 100)) + "%)");
         lines.add ("Tilt: " + juce::String (result.mixAfter.tiltDbPerOct, 1) + " (ref " + juce::String (refProfile.mix.tiltDbPerOct, 1) + ") dB/oct");
         lines.add ("");
@@ -864,13 +896,13 @@ void MixMainComponent::refreshResult()
     }
     else
     {
-        lines.add ("Qui vedrai il confronto tra");
-        lines.add ("il reference e il tuo mix,");
-        lines.add ("prima e dopo Alpha Monster.");
+        lines.add ("Here you will see the reference");
+        lines.add ("compared with your mix,");
+        lines.add ("before and after Alpha Monster.");
         lines.add ("");
-        lines.add ("Tutti i parametri (volume, pan,");
-        lines.add ("EQ, compressore, riverbero)");
-        lines.add ("finiscono nel report esportato.");
+        lines.add ("Every parameter (level, pan,");
+        lines.add ("EQ, compressor, reverb)");
+        lines.add ("goes into the exported report.");
     }
     resultInfo.setLines (lines);
 
@@ -893,65 +925,90 @@ void MixMainComponent::refreshResult()
         }
         stemCards[(size_t) i].setYourResult (yours, 0.0f);
     }
-    refreshPlayerSources();
 }
 
-void MixMainComponent::refreshPlayerSources()
+void MixMainComponent::updateOriginalMix()
 {
-    const int previous = playSource.getSelectedId();
-    playSource.clear (juce::dontSendNotification);
-    if (refAudio.ok()) playSource.addItem ("Reference", 1);
-    for (size_t i = 0; i < refStems.size(); ++i)
-        playSource.addItem ("Reference: " + stemName (refStems[i].type), 2 + (int) refStems[i].type);
-    if (! tracks.empty()) playSource.addItem ("Il tuo brano (originale)", 10);
-    if (result.ok) playSource.addItem ("Risultato Alpha Monster", 11);
-    if (playSource.indexOfItemId (previous) >= 0) playSource.setSelectedId (previous, juce::dontSendNotification);
-    else if (playSource.getNumItems() > 0) playSource.setSelectedItemIndex (playSource.getNumItems() - 1, juce::dontSendNotification);
+    if (mode == Mode::stereoMix) return;   // the loaded stereo file is the original
+    int len = 0;
+    for (auto& t : tracks) len = juce::jmax (len, t.audio.getNumSamples());
+    originalMix.setSize (2, len);
+    originalMix.clear();
+    for (auto& t : tracks)
+        for (int ch = 0; ch < 2; ++ch) originalMix.addFrom (ch, 0, t.audio, ch, 0, t.audio.getNumSamples());
+    originalRate = projectRate;
+    originalLufs = len > 0 ? AudioAnalyzer::measureLufs (originalMix, originalRate) : -70.0f;
 }
 
-//==============================================================================
-void MixMainComponent::play (int id)
+void MixMainComponent::rebuildPlayer()
 {
-    if (! audioReady) { status ("!Nessuna uscita audio disponibile."); return; }
-    stopPlayback();
-
-    double rate = StemSeparator::sampleRate;
-    juce::AudioBuffer<float> buf;
-    if (id == 1 && refAudio.ok()) buf = refAudio.buffer;
-    else if (id >= 2 && id < 8)
+    engine.clearLanes();
+    std::vector<LanePtr> lanes;
+    auto add = [&lanes] (const juce::String& name, PlayerLane::Section sec, bool isMix, juce::Colour c,
+                         const juce::AudioBuffer<float>& audio, double rate)
     {
-        for (auto& s : refStems) if ((int) s.type == id - 2) buf = s.audio;
+        if (audio.getNumSamples() == 0) return;
+        auto l = std::make_shared<PlayerLane>();
+        l->name = name;
+        l->section = sec;
+        l->isMix = isMix;
+        l->colour = c;
+        l->audio = &audio;
+        l->sampleRate = rate;
+        l->mute.store (! isMix);   // default: only the mixes play
+        l->computePeaks();
+        lanes.push_back (l);
+    };
+
+    if (refAudio.ok())
+    {
+        add ("Reference mix", PlayerLane::reference, true, theme::cream, refAudio.buffer, StemSeparator::sampleRate);
+        for (auto& st : refStems)
+            add (stemName (st.type), PlayerLane::reference, false, theme::stemColour ((int) st.type), st.audio, StemSeparator::sampleRate);
     }
-    else if (id == 10 && ! tracks.empty())
+    if (! tracks.empty())
     {
-        int len = 0;
-        for (auto& t : tracks) len = juce::jmax (len, t.audio.getNumSamples());
-        buf.setSize (2, len);
-        buf.clear();
+        add (mode == Mode::stereoMix ? "Your mix (stereo file)" : "Your mix (sum of tracks)", PlayerLane::original, true,
+             theme::ledRed, originalMix, originalRate);
         for (auto& t : tracks)
-            for (int ch = 0; ch < 2; ++ch) buf.addFrom (ch, 0, t.audio, ch, 0, t.audio.getNumSamples());
-        rate = projectRate;
+            add (t.name, PlayerLane::original, false, theme::stemColour ((int) t.type), t.audio, projectRate);
     }
-    else if (id == 11 && result.ok)
+    if (result.ok)
     {
-        buf = result.mix;
-        rate = result.sampleRate;
+        add ("Alpha Monster mix", PlayerLane::result, true, theme::crtTrace, result.mix, result.sampleRate);
+        for (auto& t : tracks)
+            add (t.name, PlayerLane::result, false, theme::stemColour ((int) t.type), t.processed, result.sampleRate);
     }
-    if (buf.getNumSamples() == 0) return;
 
-    playBuffer = std::move (buf);
-    memorySource = std::make_unique<juce::MemoryAudioSource> (playBuffer, false, false);
-    transport.setSource (memorySource.get(), 0, nullptr, rate, 2);
-    transport.setPosition (0.0);
-    transport.start();
-    if (playSource.indexOfItemId (id) >= 0) playSource.setSelectedId (id, juce::dontSendNotification);
+    // level match: every section plays at the loudness of the quietest mix
+    const float lufs[3] = { refAudio.ok() ? refProfile.mix.integratedLufs : 100.0f,
+                            ! tracks.empty() ? originalLufs : 100.0f,
+                            result.ok ? result.mixAfter.integratedLufs : 100.0f };
+    float target = 100.0f;
+    for (auto v : lufs) if (v > -69.0f) target = juce::jmin (target, v);
+    for (auto& l : lanes)
+    {
+        const float v = lufs[(int) l->section];
+        l->levelMatchGain = (v > -69.0f && v < 99.0f) ? juce::Decibels::decibelsToGain (target - v) : 1.0f;
+    }
+
+    // what plays by default: the newest section
+    const int newest = result.ok ? 2 : (! tracks.empty() ? 1 : 0);
+    engine.setLanes (std::move (lanes));
+    if (lastNewestSection != newest)
+        for (int i = 0; i < 3; ++i) engine.setSectionEnabled (i, i == newest);
+    lastNewestSection = newest;
+    player.refresh();
 }
 
-void MixMainComponent::stopPlayback()
+void MixMainComponent::openPlayer()
 {
-    transport.stop();
-    transport.setSource (nullptr);
-    memorySource.reset();
+    if (! audioReady) status ("!No audio output available: playback is disabled.");
+    if (playerWindow == nullptr)
+        playerWindow = std::make_unique<PlayerWindow> (player);
+    playerWindow->setVisible (true);
+    playerWindow->toFront (true);
+    player.grabKeyboardFocus();
 }
 
 //==============================================================================

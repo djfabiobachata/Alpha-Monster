@@ -26,7 +26,7 @@ StemCard::StemCard()
     info.fontHeight = 12.0f;
     addAndMakeVisible (listen);
     listen.onClick = [this] { if (onListen) onListen(); };
-    listen.setTooltip ("Ascolta questo strumento separato dal reference");
+    listen.setTooltip ("Open the player with this reference instrument soloed");
 }
 
 void StemCard::setStem (StemType type, const StemProfile* s)
@@ -49,7 +49,7 @@ void StemCard::setStem (StemType type, const StemProfile* s)
         reverb.setValue (0.0f, "--");
         monoLed.setOn (false);
         stereoLed.setOn (false);
-        info.setLines ({ s == nullptr ? "Non analizzato" : "Assente / silenzioso", "in questo brano" });
+        info.setLines ({ s == nullptr ? "Not analysed" : "Absent / silent", "in this song" });
         repaint();
         return;
     }
@@ -63,17 +63,17 @@ void StemCard::setStem (StemType type, const StemProfile* s)
     reverb.setValue (p.reverbAmount, juce::String (juce::roundToInt (p.reverbAmount * 100.0f)) + "%");
     monoLed.setOn (p.isMono);
     stereoLed.setOn (! p.isMono);
-    info.setLines ({ "RT60   " + (p.rt60 > 0.0f ? juce::String (p.rt60, 2) + " s" : juce::String ("n/d")),
-                     "TONO   " + formatFrequency (p.centroidHz) + "Hz  " + juce::String (p.tiltDbPerOct, 1) + "dB/o",
+    info.setLines ({ "RT60   " + (p.rt60 > 0.0f ? juce::String (p.rt60, 2) + " s" : juce::String ("n/a")),
+                     "TONE   " + formatFrequency (p.centroidHz) + "Hz  " + juce::String (p.tiltDbPerOct, 1) + "dB/o",
                      "CREST  " + juce::String (p.crestDb, 1) + " dB",
-                     "ATTIVO " + juce::String (juce::roundToInt (p.activeFraction * 100.0f)) + "%" });
+                     "ACTIVE " + juce::String (juce::roundToInt (p.activeFraction * 100.0f)) + "%" });
     repaint();
 }
 
 void StemCard::setMixSummary (const SignalProfile& p, const juce::String& name)
 {
     isMix = true;
-    setTitle ("Mix completo");
+    setTitle ("Full mix");
     level.setCaption ("LUFS");
     accent = theme::cream;
     available = p.valid;
@@ -82,7 +82,7 @@ void StemCard::setMixSummary (const SignalProfile& p, const juce::String& name)
     if (! p.valid)
     {
         level.setText ("----");
-        info.setLines ({ "Carica un reference" });
+        info.setLines ({ "Load a reference" });
         return;
     }
     level.setText (juce::String (p.integratedLufs, 1));

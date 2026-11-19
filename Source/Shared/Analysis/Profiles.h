@@ -7,6 +7,11 @@
 namespace am
 {
 
+/** UI language of the shared texts (the Mix app is English, Master Italian). */
+void setEnglish (bool english);
+bool isEnglish();
+inline juce::String tr (const char* italian, const char* english) { return juce::String::fromUTF8 (isEnglish() ? english : italian); }
+
 //==============================================================================
 /** 1/3-octave analysis bands, 20 Hz .. 20 kHz (ISO 266 nominal centres). */
 constexpr int kNumBands = 31;

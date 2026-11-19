@@ -28,10 +28,10 @@ private:
     juce::Colour accent = theme::amber;
     SevenSegmentDisplay level { 5 };
     juce::Slider pan;
-    ScaleMeter width { "MONO", "AMPIO" }, depth { "DAVANTI", "DIETRO" }, reverb { "SECCO", "BAGNATO" };
+    ScaleMeter width { "MONO", "WIDE" }, depth { "FRONT", "BACK" }, reverb { "DRY", "WET" };
     LedLamp monoLed { "MONO", theme::ledAmber }, stereoLed { "STEREO", theme::ledGreen };
     TerminalScreen info;
-    juce::TextButton listen { "ASCOLTA" };
+    juce::TextButton listen { "LISTEN" };
     juce::String panText;
 };
 

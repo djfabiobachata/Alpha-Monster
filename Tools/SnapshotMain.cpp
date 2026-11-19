@@ -89,12 +89,61 @@ int main (int argc, char* argv[])
 
 #if AM_SNAPSHOT_MIX
     {
+        // playback engine self-test: rates, seek, mute, solo
+        juce::AudioBuffer<float> tone (2, 48000 * 4), noise (2, 44100 * 4);
+        for (int i = 0; i < tone.getNumSamples(); ++i)
+            for (int ch = 0; ch < 2; ++ch) tone.setSample (ch, i, i < 48000 * 2 ? 0.0f : 0.5f * std::sin (6.2831853f * 440.0f * i / 48000.0f));
+        juce::Random rnd (1);
+        for (int i = 0; i < noise.getNumSamples(); ++i)
+            for (int ch = 0; ch < 2; ++ch) noise.setSample (ch, i, 0.2f * (rnd.nextFloat() * 2.0f - 1.0f));
+
+        am::PlaybackEngine e;
+        auto a = std::make_shared<am::PlayerLane>(); a->name = "tone"; a->audio = &tone; a->sampleRate = 48000; a->computePeaks();
+        auto b = std::make_shared<am::PlayerLane>(); b->name = "noise"; b->audio = &noise; b->sampleRate = 44100; b->section = am::PlayerLane::result; b->computePeaks();
+        e.setLanes ({ a, b });
+        e.setLevelMatch (false);
+        e.prepareToPlay (512, 44100.0);
+        juce::AudioBuffer<float> out (2, 512);
+        auto rms = [&] (int blocks)
+        {
+            double sum = 0; int n = 0;
+            for (int k = 0; k < blocks; ++k)
+            {
+                juce::AudioSourceChannelInfo info (&out, 0, 512);
+                e.getNextAudioBlock (info);
+                for (int i = 0; i < 512; ++i) { sum += out.getSample (0, i) * out.getSample (0, i); ++n; }
+            }
+            return std::sqrt (sum / n);
+        };
+        bool ok = true;
+        e.play();
+        const double both = rms (20);
+        a->mute = true; rms (2); const double noiseOnly = rms (20);
+        a->mute = false; b->solo = true; rms (2); const double soloNoise = rms (20);
+        b->solo = false; a->solo = true; e.setPositionSec (0.5); rms (2); const double silentPart = rms (20);
+        e.setPositionSec (2.5); rms (2); const double tonePart = rms (20);
+        e.setPositionSec (3.99); rms (10);
+        ok &= both > 0.05 && noiseOnly > 0.05 && std::abs (noiseOnly - soloNoise) < 0.02 && silentPart < 1.0e-4 && tonePart > 0.2 && ! e.isPlaying();
+        ok &= std::abs (a->firstSoundSec - 2.0) < 0.05 && b->firstSoundSec < 0.01;
+        std::cout << "player engine test: " << (ok ? "OK" : "FAILED") << "  both " << both << " noise " << noiseOnly << " solo " << soloNoise
+                  << " silent " << silentPart << " tone " << tonePart << " first " << a->firstSoundSec << std::endl;
+        if (! ok) return 5;
+    }
+    {
+        am::setEnglish (true);
         am::AlphaLookAndFeel lnf;
         juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
         am::MixMainComponent mix;
         mix.setSize (am::MixMainComponent::defaultWidth, am::MixMainComponent::defaultHeight);
         mix.runDemoForSnapshot (refFile, ownFile, [] (int ms) { pump (ms); });
         save (mix, outDir.getChildFile ("mix.png"));
+
+        // player: vocals of the reference soloed, playhead moved where they start
+        auto& player = mix.getPlayerComponent();
+        player.setSize (1280, 820);
+        player.auditionLane ("0/Vocals");
+        pump (400);
+        save (player, outDir.getChildFile ("player.png"));
         juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
     }
 #endif

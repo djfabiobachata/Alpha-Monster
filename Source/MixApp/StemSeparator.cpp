@@ -83,7 +83,7 @@ bool StemSeparator::loadModel (const juce::File& modelFile, juce::String& error)
 {
     if (! modelFile.existsAsFile())
     {
-        error = "Modello IA non trovato: " + modelFile.getFullPathName();
+        error = "AI model not found: " + modelFile.getFullPathName();
         return false;
     }
 
@@ -96,13 +96,13 @@ bool StemSeparator::loadModel (const juce::File& modelFile, juce::String& error)
     }
     catch (const std::exception& e)
     {
-        error = juce::String ("Errore nel caricamento del modello: ") + e.what();
+        error = juce::String ("Error loading the AI model: ") + e.what();
         return false;
     }
 
     if (! ok)
     {
-        error = "Il file del modello IA non e' valido: " + modelFile.getFileName();
+        error = "The AI model file is not valid: " + modelFile.getFileName();
         return false;
     }
     impl->model = std::move (m);
@@ -260,7 +260,7 @@ std::vector<StemSeparator::Stem> StemSeparator::separate (const juce::AudioBuffe
         }
         if (cancelled.load()) allDone = true;
         const float frac = sum / (float) chunks.size();
-        if (progress && ! progress (frac, "Separazione IA: " + juce::String ((int) (frac * 100.0f)) + "%"))
+        if (progress && ! progress (frac, "AI separation: " + juce::String ((int) (frac * 100.0f)) + "%"))
             cancelled.store (true);
         if (allDone) break;
         std::this_thread::sleep_for (std::chrono::milliseconds (250));
@@ -271,7 +271,7 @@ std::vector<StemSeparator::Stem> StemSeparator::separate (const juce::AudioBuffe
     if (cancelled.load())
     {
         if (! firstError.empty() && progress)
-            progress (0.0f, "Errore separazione: " + juce::String (firstError));
+            progress (0.0f, "Separation error: " + juce::String (firstError));
         return {};
     }
 

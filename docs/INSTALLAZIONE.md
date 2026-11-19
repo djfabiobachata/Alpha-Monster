@@ -30,13 +30,15 @@ In alternativa usa lo `.zip`: contiene gli stessi bundle da copiare a mano nelle
 
 ## Primo utilizzo
 
-### Alpha Monster Mix
+### Alpha Monster Mix (interfaccia in inglese)
 
-1. **CARICA REFERENCE** (oppure trascina il file nella finestra).
-2. **ANALIZZA**: separa gli strumenti con l'IA. Il calcolo avviene tutto sul tuo computer (niente cloud): su un brano di 4 minuti servono indicativamente da 3 a 10 minuti, in base al processore. Su Apple Silicon è più veloce.
-3. **TRACCE SEPARATE → AGGIUNGI TRACCE** con gli stem del tuo brano, oppure **MIX STEREO → CARICA MIX STEREO**.
-4. **MIXA COME IL REFERENCE**, poi ascolta "Risultato Alpha Monster" e premi **ESPORTA**.
-5. **SALVA ANALISI** salva l'analisi del reference (file `.amref`), così puoi riusarla senza rifare la separazione.
+1. **LOAD REFERENCE** (oppure trascina il file nella finestra).
+2. **ANALYSE**: separa gli strumenti con l'IA. Il calcolo avviene tutto sul tuo computer (niente cloud): su un brano di 4 minuti servono indicativamente da 3 a 10 minuti, in base al processore. Su Apple Silicon è più veloce.
+3. **SEPARATE TRACKS → ADD TRACKS** con gli stem del tuo brano, oppure **STEREO MIX → LOAD STEREO MIX**.
+4. **MIX LIKE THE REFERENCE**.
+5. **PLAYER**: ascolta e confronta reference, brano originale e risultato. Puoi mettere in mute/solo ogni traccia e cliccare sulla forma d'onda per spostarti.
+6. **EXPORT**.
+7. **SAVE ANALYSIS** salva l'analisi del reference (file `.amref`), così puoi riusarla senza rifare la separazione.
 
 ### Alpha Monster Master
 

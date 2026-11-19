@@ -3,6 +3,7 @@ set(AM_MIX_CORE_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/MixEngine.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/StemCard.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/MixMainComponent.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/MultitrackPlayer.cpp
     CACHE INTERNAL "")
 
 juce_add_gui_app(AlphaMonsterMix

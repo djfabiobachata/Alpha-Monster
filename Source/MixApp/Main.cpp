@@ -60,6 +60,7 @@ public:
 
     void initialise (const juce::String&) override
     {
+        setEnglish (true);
         juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
         window = std::make_unique<MainWindow> (getApplicationName());
     }

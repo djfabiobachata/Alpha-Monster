@@ -54,7 +54,26 @@ Con **ESPORTA** ottieni:
 - ogni traccia processata;
 - un **report** con tutti i parametri da riportare nella tua DAW: fader, pan, EQ, compressore, riverbero (`Report mix.txt` e `Parametri mix.json`).
 
-Le manopole Livelli / EQ / Dinamica / Spazio / Riverbero decidono quanto seguire il reference (0-100%).
+Le manopole Levels / EQ / Dynamics / Space / Reverb decidono quanto seguire il reference (0-100%). L'interfaccia di Alpha Monster Mix è in inglese.
+
+### Player
+
+![Player](docs/player.png)
+
+Il pulsante **PLAYER** (oppure **LISTEN** su ogni strumento) apre una finestra con la forma d'onda di tutto ciò che si può ascoltare:
+
+- **Reference**: il mix e ogni strumento separato;
+- **Your original song**: il tuo mix e le tue tracce (o gli strumenti separati dall'IA, in modalità mix stereo);
+- **Result**: il mix di Alpha Monster e ogni traccia processata.
+
+Funzioni del player:
+
+- **Play / pausa** con il pulsante o la barra spaziatrice.
+- **Clic sulla forma d'onda** o sulla timeline per spostare la testina dove vuoi.
+- **M** (mute) e **S** (solo) su ogni traccia. Doppio clic sul nome mette in solo solo quella traccia.
+- **LISTEN** su uno strumento del reference lo mette in solo e porta la testina al punto in cui inizia a suonare: non serve aspettare che entri la voce.
+- **REFERENCE / ORIGINAL / RESULT** per il confronto A/B immediato. Ctrl/Cmd+clic per ascoltarne più di uno insieme.
+- **LEVEL MATCH** porta tutte le sezioni alla stessa loudness, per un confronto onesto.
 
 ---
 

@@ -238,12 +238,12 @@ juce::StringArray AutoMixer::describeReferenceStem (const StemProfile& s)
 {
     const auto& p = s.profile;
     juce::StringArray l;
-    l.add ("Volume: " + db (s.levelRelMixDb) + " rispetto al mix");
-    l.add ("Posizione: " + panStr (p.pan) + "   " + p.widthText() + " (" + pct (p.width) + ")");
-    l.add ("Profondita': " + p.depthText() + " (" + pct (p.depth) + ")");
-    l.add ("Riverbero: " + p.reverbText() + (p.rt60 > 0.0f ? "  RT60 ~" + juce::String (p.rt60, 1) + " s" : juce::String()));
-    l.add ("Tono: centro " + formatFrequency (p.centroidHz) + "Hz, tilt " + juce::String (p.tiltDbPerOct, 1) + " dB/oct");
-    l.add ("Dinamica: crest " + juce::String (p.crestDb, 1) + " dB, LRA " + juce::String (p.loudnessRange, 1) + " LU");
+    l.add ("Volume: " + db (s.levelRelMixDb) + " relative to the mix");
+    l.add ("Position: " + panStr (p.pan) + "   " + p.widthText() + " (" + pct (p.width) + ")");
+    l.add ("Depth: " + p.depthText() + " (" + pct (p.depth) + ")");
+    l.add ("Reverb: " + p.reverbText() + (p.rt60 > 0.0f ? "  RT60 ~" + juce::String (p.rt60, 1) + " s" : juce::String()));
+    l.add ("Tone: centre " + formatFrequency (p.centroidHz) + "Hz, tilt " + juce::String (p.tiltDbPerOct, 1) + " dB/oct");
+    l.add ("Dynamics: crest " + juce::String (p.crestDb, 1) + " dB, LRA " + juce::String (p.loudnessRange, 1) + " LU");
     return l;
 }
 
@@ -253,8 +253,8 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
 {
     MixResult res;
     res.sampleRate = sr;
-    if (tracks.empty()) { res.error = "Nessuna traccia da mixare."; return res; }
-    if (ref.stems.empty()) { res.error = "Analizza prima il reference (separazione degli strumenti)."; return res; }
+    if (tracks.empty()) { res.error = "No tracks to mix."; return res; }
+    if (ref.stems.empty()) { res.error = "Analyse the reference first (instrument separation)."; return res; }
 
     int length = 0;
     for (auto& t : tracks) length = juce::jmax (length, t.audio.getNumSamples());
@@ -264,7 +264,7 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
     // ---- 1. analyse every track as it is ----------------------------------------
     for (size_t i = 0; i < tracks.size(); ++i)
     {
-        if (! report (0.25f * (float) i / (float) tracks.size(), "Analisi traccia: " + tracks[i].name)) return res;
+        if (! report (0.25f * (float) i / (float) tracks.size(), "Analysing track: " + tracks[i].name)) return res;
         tracks[i].before = AudioAnalyzer::analyse (tracks[i].audio, sr);
         tracks[i].processed = tracks[i].audio;
         tracks[i].settings = {};
@@ -299,7 +299,7 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
         {
             groupProcLufs[typeInt] = srcProf.integratedLufs;
             if (target == nullptr)
-                res.warnings.add ("Nessun riferimento per '" + stemName (type) + "': tracce lasciate col bilanciamento originale.");
+                res.warnings.add ("No reference for '" + stemName (type) + "': tracks keep their original balance.");
             continue;
         }
 
@@ -311,7 +311,7 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
         }
 
         // -- EQ
-        if (! report (p0, stemName (type) + ": EQ di matching")) return res;
+        if (! report (p0, stemName (type) + ": matching EQ")) return res;
         if (amt.eq > 0.0f)
         {
             MatchCurveOptions o;
@@ -330,7 +330,7 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
         const float crestDiff = srcProf.crestDb - tp.crestDb;
         if (amt.dynamics > 0.0f && crestDiff > 1.5f)
         {
-            if (! report (p0 + pw * 0.15f, stemName (type) + ": compressione")) return res;
+            if (! report (p0 + pw * 0.15f, stemName (type) + ": compression")) return res;
             const float ratio = juce::jlimit (1.2f, 6.0f, 1.0f + juce::jmin (crestDiff, 12.0f) / 3.0f * amt.dynamics);
             float att = 10.0f, rel = 140.0f;
             switch (type)
@@ -355,12 +355,12 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
         }
         else if (crestDiff < -3.0f)
         {
-            res.warnings.add (stemName (type) + ": nel reference e' piu' dinamico del tuo (" + juce::String (-crestDiff, 1)
-                              + " dB di crest in piu'). Riduci la compressione su queste tracce.");
+            res.warnings.add (stemName (type) + ": the reference is more dynamic than yours (" + juce::String (-crestDiff, 1)
+                              + " dB more crest). Reduce the compression on these tracks.");
         }
 
         // -- pan
-        if (! report (p0 + pw * 0.3f, stemName (type) + ": posizione nello stereo")) return res;
+        if (! report (p0 + pw * 0.3f, stemName (type) + ": stereo position")) return res;
         const float panGoal = srcProf.pan + (tp.pan - srcProf.pan) * amt.space;
         {
             std::vector<int> monoTracks;
@@ -417,7 +417,7 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
         // -- reverb / depth
         if (amt.reverb > 0.0f)
         {
-            if (! report (p0 + pw * 0.45f, stemName (type) + ": profondita' e riverbero")) return res;
+            if (! report (p0 + pw * 0.45f, stemName (type) + ": depth and reverb")) return res;
             auto dryGroup = sumOf (tracks, idx, true, length);
             const auto dryEx = excerpt (dryGroup, sr);
             const float rNow = AudioAnalyzer::analyse (dryEx, sr).reverbAmount;
@@ -461,7 +461,7 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
         // -- width
         if (amt.space > 0.0f)
         {
-            if (! report (p0 + pw * 0.75f, stemName (type) + ": larghezza stereo")) return res;
+            if (! report (p0 + pw * 0.75f, stemName (type) + ": stereo width")) return res;
             auto grp = sumOf (tracks, idx, true, length);
             const auto ex = excerpt (grp, sr);
             const float wNow = AudioAnalyzer::measureWidth (ex, sr);
@@ -519,7 +519,7 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
     }
 
     // ---- 3. levels ----------------------------------------------------------------
-    if (! report (0.87f, "Bilanciamento dei volumi")) return res;
+    if (! report (0.87f, "Balancing levels")) return res;
     const float g0 = amt.targetLufs - origMixLufs;
     std::map<int, float> groupGain;
     for (auto& [typeInt, idx] : groups)
@@ -557,7 +557,7 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
     {
         global -= (tpDb + 1.0f);
         mix = buildMix (global);
-        res.warnings.add ("Mix abbassato di " + juce::String (tpDb + 1.0f, 1) + " dB per lasciare headroom (picchi a -1 dBTP): il volume finale lo dara' il mastering.");
+        res.warnings.add ("Mix lowered by " + juce::String (tpDb + 1.0f, 1) + " dB to keep headroom (peaks at -1 dBTP): mastering will set the final loudness.");
     }
 
     for (auto& [typeInt, idx] : groups)
@@ -571,14 +571,14 @@ MixResult AutoMixer::run (std::vector<MixTrack>& tracks, const ReferenceMixProfi
     // ---- 4. verification ------------------------------------------------------------
     for (size_t i = 0; i < tracks.size(); ++i)
     {
-        if (! report (0.9f + 0.08f * (float) i / (float) tracks.size(), "Verifica: " + tracks[i].name)) return res;
+        if (! report (0.9f + 0.08f * (float) i / (float) tracks.size(), "Verifying: " + tracks[i].name)) return res;
         tracks[i].after = AudioAnalyzer::analyse (tracks[i].processed, sr);
     }
     res.mix = std::move (mix);
     res.mixBefore = AudioAnalyzer::analyse (res.original, sr);
     res.mixAfter = AudioAnalyzer::analyse (res.mix, sr);
     res.ok = true;
-    report (1.0f, "Mix completato");
+    report (1.0f, "Mix complete");
     return res;
 }
 
@@ -590,10 +590,10 @@ juce::String AutoMixer::buildReport (const std::vector<MixTrack>& tracks, const 
     auto line = [&s] (const juce::String& l = {}) { s << l << juce::newLine; };
 
     line ("ALPHA MONSTER MIX - REPORT");
-    line ("Generato: " + juce::Time::getCurrentTime().toString (true, true));
+    line ("Created: " + juce::Time::getCurrentTime().toString (true, true));
     line ("Reference: " + ref.sourceName);
     line();
-    line ("=== REFERENCE: COME E' MIXATO ===");
+    line ("=== REFERENCE: HOW IT IS MIXED ===");
     line ("Mix: " + juce::String (ref.mix.integratedLufs, 1) + " LUFS, true peak " + juce::String (ref.mix.truePeakDb, 1)
           + " dBTP, LRA " + juce::String (ref.mix.loudnessRange, 1) + " LU, " + ref.mix.widthText() + " (" + pct (ref.mix.width) + ")");
     for (auto& st : ref.stems)
@@ -604,52 +604,52 @@ juce::String AutoMixer::buildReport (const std::vector<MixTrack>& tracks, const 
     }
 
     line();
-    line ("=== IL TUO MIX: IMPOSTAZIONI APPLICATE ===");
-    line ("Quantita': livelli " + pct (amt.level) + ", EQ " + pct (amt.eq) + ", dinamica " + pct (amt.dynamics)
-          + ", spazio " + pct (amt.space) + ", riverbero " + pct (amt.reverb) + ", target " + juce::String (amt.targetLufs, 1) + " LUFS");
+    line ("=== YOUR MIX: APPLIED SETTINGS ===");
+    line ("Amounts: levels " + pct (amt.level) + ", EQ " + pct (amt.eq) + ", dynamics " + pct (amt.dynamics)
+          + ", space " + pct (amt.space) + ", reverb " + pct (amt.reverb) + ", target " + juce::String (amt.targetLufs, 1) + " LUFS");
     for (auto& t : tracks)
     {
         const auto& st = t.settings;
         line();
-        line ("Traccia: " + t.name + "   (" + stemName (t.type) + (st.hasTarget ? " -> segue " + stemName (st.targetStem) : juce::String (", nessun riferimento")) + ")");
+        line ("Track: " + t.name + "   (" + stemName (t.type) + (st.hasTarget ? " -> follows " + stemName (st.targetStem) : juce::String (", no reference")) + ")");
         line ("  Fader:        " + db (st.gainDb));
-        line ("  Pan:          " + panStr (st.panBefore) + " -> " + panStr (st.panAfter) + (st.pannedAsMono ? "  (sorgente mono)" : "  (bilanciamento stereo)"));
+        line ("  Pan:          " + panStr (st.panBefore) + " -> " + panStr (st.panAfter) + (st.pannedAsMono ? "  (mono source)" : "  (stereo balance)"));
         if (st.stereoize > 0.0f)
-            line ("  Larghezza:    pseudo-stereo " + pct (st.stereoize / 1.5f) + " (sopra 140-220 Hz)");
+            line ("  Width:        pseudo-stereo " + pct (st.stereoize / 1.5f) + " (above 140-220 Hz)");
         else if (std::abs (st.sideGainDb) > 0.2f)
-            line ("  Larghezza:    side " + db (st.sideGainDb) + " (M/S)");
+            line ("  Width:        side " + db (st.sideGainDb) + " (M/S)");
         else
-            line ("  Larghezza:    invariata");
+            line ("  Width:        unchanged");
         auto eq = describeCurve (st.eqCurve, 1.0f, 6);
-        line ("  EQ:           " + (eq.isEmpty() ? juce::String ("nessuna correzione importante") : eq.joinIntoString ("; ")));
+        line ("  EQ:           " + (eq.isEmpty() ? juce::String ("no significant correction") : eq.joinIntoString ("; ")));
         if (st.compressed)
-            line ("  Compressore:  soglia " + juce::String (st.compThresholdDb, 1) + " dBFS, ratio " + juce::String (st.compRatio, 1)
+            line ("  Compressor:   threshold " + juce::String (st.compThresholdDb, 1) + " dBFS, ratio " + juce::String (st.compRatio, 1)
                   + ":1, attack " + juce::String ((int) st.compAttackMs) + " ms, release " + juce::String ((int) st.compReleaseMs) + " ms (RMS, knee 6 dB)");
         else
-            line ("  Compressore:  non necessario");
+            line ("  Compressor:   not needed");
         if (st.reverbSendDb > -99.0f)
-            line ("  Riverbero:    send " + db (st.reverbSendDb) + ", decay ~" + juce::String (st.reverbDecaySec, 1) + " s, pre-delay 20 ms, HPF 180 Hz, damping "
+            line ("  Reverb:       send " + db (st.reverbSendDb) + ", decay ~" + juce::String (st.reverbDecaySec, 1) + " s, pre-delay 20 ms, HPF 180 Hz, damping "
                   + juce::String (st.reverbDamping, 2));
         else
-            line ("  Riverbero:    nessuno aggiunto");
+            line ("  Reverb:       none added");
         if (t.after.valid)
-            line ("  Risultato:    pan " + t.after.panText() + ", " + t.after.widthText() + " (" + pct (t.after.width) + "), riverbero "
-                  + pct (t.after.reverbAmount) + ", profondita' " + t.after.depthText());
+            line ("  Result:       pan " + t.after.panText() + ", " + t.after.widthText() + " (" + pct (t.after.width) + "), reverb "
+                  + pct (t.after.reverbAmount) + ", depth " + t.after.depthText());
     }
 
     line();
-    line ("=== MIX FINALE ===");
-    line ("Prima: " + juce::String (res.mixBefore.integratedLufs, 1) + " LUFS, " + res.mixBefore.widthText() + " (" + pct (res.mixBefore.width) + ")");
-    line ("Dopo:  " + juce::String (res.mixAfter.integratedLufs, 1) + " LUFS, true peak " + juce::String (res.mixAfter.truePeakDb, 1)
+    line ("=== FINAL MIX ===");
+    line ("Before: " + juce::String (res.mixBefore.integratedLufs, 1) + " LUFS, " + res.mixBefore.widthText() + " (" + pct (res.mixBefore.width) + ")");
+    line ("After:  " + juce::String (res.mixAfter.integratedLufs, 1) + " LUFS, true peak " + juce::String (res.mixAfter.truePeakDb, 1)
           + " dBTP, " + res.mixAfter.widthText() + " (" + pct (res.mixAfter.width) + ")");
     if (! res.warnings.isEmpty())
     {
         line();
-        line ("Note:");
+        line ("Notes:");
         for (auto& w : res.warnings) line ("  - " + w);
     }
     line();
-    line ("Suggerimento: per il volume finale usa Alpha Monster Master con lo stesso reference.");
+    line ("Tip: use Alpha Monster Master with the same reference for the final loudness.");
     return s;
 }
 

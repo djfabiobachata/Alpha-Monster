@@ -162,12 +162,13 @@ void SevenSegmentDisplay::paint (juce::Graphics& g)
     g.fillRoundedRectangle (glass, 2.5f);
 
     // parse characters, attaching '.' to the previous cell
-    struct Cell { uint8_t segs = 0; bool dot = false; };
+    struct Cell { uint8_t segs = 0; bool dot = false; bool colon = false; };
     std::vector<Cell> parsed;
     for (auto c : text)
     {
         if ((c == '.' || c == ',') && ! parsed.empty() && ! parsed.back().dot) { parsed.back().dot = true; continue; }
         if (c == '.' || c == ',') { parsed.push_back ({ 0, true }); continue; }
+        if (c == ':') { parsed.push_back ({ 0, false, true }); continue; }
         parsed.push_back ({ segmentsFor (c), false });
     }
 
@@ -181,7 +182,14 @@ void SevenSegmentDisplay::paint (juce::Graphics& g)
     {
         const auto cell = juce::Rectangle<float> (startX + cellW * (float) i, inner.getY(), cellW, inner.getHeight());
         const int pi = i - offset;
-        if (pi >= 0) drawDigit (g, cell, parsed[(size_t) pi].segs, parsed[(size_t) pi].dot);
+        if (pi >= 0 && parsed[(size_t) pi].colon)
+        {
+            const float d = juce::jmax (2.5f, cell.getWidth() * 0.13f);
+            g.setColour (onColour);
+            for (float fy : { 0.33f, 0.70f })
+                g.fillEllipse (cell.getCentreX() - d * 0.5f, cell.getY() + cell.getHeight() * fy - d * 0.5f, d, d);
+        }
+        else if (pi >= 0) drawDigit (g, cell, parsed[(size_t) pi].segs, parsed[(size_t) pi].dot);
         else         drawDigit (g, cell, 0, false);
     }
 

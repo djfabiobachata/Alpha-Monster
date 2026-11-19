@@ -7,6 +7,7 @@
 #include "StemCard.h"
 #include "StemSeparator.h"
 #include "MixEngine.h"
+#include "MultitrackPlayer.h"
 
 namespace am
 {
@@ -67,6 +68,7 @@ public:
     /** Test hook for am_snapshot: runs the whole workflow synchronously. Uses
         sibling files ref_<stem>.wav / my_<stem>.wav when no AI model exists. */
     void runDemoForSnapshot (const juce::File& reference, const juce::File& myMix, std::function<void (int)> pump);
+    PlayerComponent& getPlayerComponent() { return player; }
 
 private:
     enum class Mode { tracks, stereoMix };
@@ -92,14 +94,14 @@ private:
     void refreshReference();
     void refreshTracks();
     void refreshResult();
-    void refreshPlayerSources();
+    void rebuildPlayer();
+    void invalidatePlayer() { engine.clearLanes(); player.refresh(); }
+    void updateOriginalMix();
+    void openPlayer();
     void setBusy (bool b);
     void status (const juce::String& line);
     bool startJob (BackgroundJob::Work, std::function<void()> done);
 
-    // player
-    void play (int sourceId);
-    void stopPlayback();
 
     // ListBoxModel
     int getNumRows() override;
@@ -133,36 +135,35 @@ private:
     juce::File lastExportFolder;
 
     // ---------------------------------------------------------------- header
-    juce::TextButton loadRefButton { "CARICA REFERENCE" }, analyseButton { "ANALIZZA" },
-                     openAnalysisButton { "APRI ANALISI" }, saveAnalysisButton { "SALVA ANALISI" };
+    juce::TextButton loadRefButton { "LOAD REFERENCE" }, analyseButton { "ANALYSE" },
+                     openAnalysisButton { "OPEN ANALYSIS" }, saveAnalysisButton { "SAVE ANALYSIS" };
     TerminalScreen refName;
-    LedLamp modelLed { "MODELLO IA", theme::ledGreen };
+    LedLamp modelLed { "AI MODEL", theme::ledGreen };
 
     // ---------------------------------------------------------------- reference
     StemCard mixCard;
     std::array<StemCard, 6> stemCards;
 
     // ---------------------------------------------------------------- your song
-    ModulePanel songPanel { "Il tuo brano" };
-    juce::TextButton modeTracks { "TRACCE SEPARATE" }, modeStereo { "MIX STEREO" };
-    juce::TextButton addButton { "AGGIUNGI TRACCE" }, removeButton { "RIMUOVI" }, clearButton { "SVUOTA" },
-                     loadMixButton { "CARICA MIX STEREO" };
+    ModulePanel songPanel { "Your song" };
+    juce::TextButton modeTracks { "SEPARATE TRACKS" }, modeStereo { "STEREO MIX" };
+    juce::TextButton addButton { "ADD TRACKS" }, removeButton { "REMOVE" }, clearButton { "CLEAR" },
+                     loadMixButton { "LOAD STEREO MIX" };
     juce::ListBox trackList { "tracks", this };
     TerminalScreen songHint;
 
     // ---------------------------------------------------------------- auto-mix
     ModulePanel mixPanel { "Auto-Mix" };
     juce::Slider levelKnob, eqKnob, dynKnob, spaceKnob, reverbKnob, targetKnob;
-    juce::TextButton mixButton { "MIXA COME IL REFERENCE" };
+    juce::TextButton mixButton { "MIX LIKE THE REFERENCE" };
     double progressValue = 0.0;
     juce::ProgressBar progressBar { progressValue };
 
     // ---------------------------------------------------------------- result
-    ModulePanel resultPanel { "Risultato" };
+    ModulePanel resultPanel { "Result" };
     SpectrumScreen spectrum;
     TerminalScreen resultInfo;
-    juce::TextButton exportButton { "ESPORTA" }, playButton { "PLAY" }, stopButton { "STOP" };
-    juce::ComboBox playSource;
+    juce::TextButton exportButton { "EXPORT" }, playerButton { "PLAYER" }, playButton { "PLAY" }, rewindButton { "|<" };
 
     TerminalScreen statusLine;
     juce::TooltipWindow tooltips { this, 600 };
@@ -170,9 +171,13 @@ private:
     // ---------------------------------------------------------------- audio
     juce::AudioDeviceManager deviceManager;
     juce::AudioSourcePlayer sourcePlayer;
-    juce::AudioTransportSource transport;
-    std::unique_ptr<juce::MemoryAudioSource> memorySource;
-    juce::AudioBuffer<float> playBuffer;
+    PlaybackEngine engine;
+    PlayerComponent player { engine };
+    std::unique_ptr<PlayerWindow> playerWindow;
+    juce::AudioBuffer<float> originalMix;     // your song as it is (sum of tracks or the stereo file)
+    double originalRate = 44100.0;
+    float originalLufs = -70.0f;
+    int lastNewestSection = -1;
     bool audioReady = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MixMainComponent)
