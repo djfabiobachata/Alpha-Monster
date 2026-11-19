@@ -55,7 +55,7 @@ jobs:
   macos:
     name: macOS (Universal)
     needs: model
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@v4
 
