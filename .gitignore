@@ -1,0 +1,11 @@
+build/
+build-*/
+dist/
+model/
+testaudio/
+shots/
+sep/
+*.bin
+.DS_Store
+.vscode/
+.idea/

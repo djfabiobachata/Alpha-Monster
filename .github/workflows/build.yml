@@ -1,0 +1,230 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  MODEL_FILE: ggml-model-htdemucs-6s-f16.bin
+  MODEL_URL: https://huggingface.co/datasets/Retrobear/demucs.cpp/resolve/main/ggml-model-htdemucs-6s-f16.bin
+
+jobs:
+  # ---------------------------------------------------------------------------
+  model:
+    name: AI model (Demucs v4 6-stem)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: model
+          key: demucs-ggml-${{ env.MODEL_FILE }}-v1
+
+      - name: Download pre-converted weights
+        if: steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p model
+          curl -L --fail --retry 5 --retry-delay 10 -o "model/$MODEL_FILE" "$MODEL_URL"
+
+      - name: Fallback - convert the official PyTorch weights
+        if: steps.cache.outputs.cache-hit != 'true' && hashFiles('model/*.bin') == ''
+        run: |
+          mkdir -p model
+          git clone --depth 1 https://github.com/sevagh/demucs.cpp dcpp
+          python3 -m pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+          python3 -m pip install --quiet demucs numpy
+          python3 dcpp/scripts/convert-pth-to-ggml.py --six-source model
+
+      - name: Check
+        run: ls -la model && test $(stat -c%s "model/$MODEL_FILE") -gt 10000000
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demucs-model
+          path: model/${{ env.MODEL_FILE }}
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  macos:
+    name: macOS (Universal)
+    needs: model
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: demucs-model
+          path: model
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DAM_MODEL_FILE="$GITHUB_WORKSPACE/model/$MODEL_FILE"
+
+      - name: Build
+        run: |
+          cmake --build build --parallel 4 --target \
+            AlphaMonsterMaster_VST3 AlphaMonsterMaster_AU AlphaMonsterMaster_Standalone \
+            AlphaMonsterMix am_analyze am_separate am_snapshot
+
+      - name: Test - analysis engine and AI separation
+        run: |
+          python -m pip install --quiet numpy scipy
+          python Tools/make_test_audio.py testaudio
+          A=build/Tools/am_analyze_artefacts/Release/am_analyze
+          S=build/Tools/am_separate_artefacts/Release/am_separate
+          $A testaudio/ref_master.wav testaudio/my_mix.wav
+          $S "model/$MODEL_FILE" testaudio/ref_master.wav sep 3
+          ls -la sep
+
+      - name: Test - UI snapshots
+        run: |
+          build/Tools/am_snapshot_artefacts/Release/am_snapshot shots testaudio/ref_master.wav testaudio/my_mix.wav > shots-report.txt
+          tail -40 shots-report.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-macos
+          path: |
+            shots
+            shots-report.txt
+            sep
+
+      - name: Sign (ad-hoc) and validate plugins
+        run: |
+          OUT=build/Source/MasterPlugin/AlphaMonsterMaster_artefacts/Release
+          MIX="build/Source/MixApp/AlphaMonsterMix_artefacts/Release/Alpha Monster Mix.app"
+          ls "$MIX/Contents/Resources/Models"
+          for b in "$OUT/VST3/Alpha Monster Master.vst3" "$OUT/AU/Alpha Monster Master.component" \
+                   "$OUT/Standalone/Alpha Monster Master.app" "$MIX"; do
+            codesign --force --deep --sign - "$b"
+          done
+          mkdir -p ~/Library/Audio/Plug-Ins/Components ~/Library/Audio/Plug-Ins/VST3
+          cp -R "$OUT/AU/Alpha Monster Master.component" ~/Library/Audio/Plug-Ins/Components/
+          cp -R "$OUT/VST3/Alpha Monster Master.vst3" ~/Library/Audio/Plug-Ins/VST3/
+          killall -9 AudioComponentRegistrar || true
+          sleep 3
+          auval -v aufx AmMs AlMo
+          curl -L --fail -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level 5 --skip-gui-tests --validate-in-process \
+            --validate ~/Library/Audio/Plug-Ins/VST3/"Alpha Monster Master.vst3"
+
+      - name: Package
+        run: |
+          VERSION=$(grep -m1 -E "project\(AlphaMonster VERSION" CMakeLists.txt | sed -E 's/.*VERSION ([0-9.]+).*/\1/')
+          bash installer/macos/make_pkg.sh "$VERSION"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-monster-macos
+          path: dist/*
+
+  # ---------------------------------------------------------------------------
+  windows:
+    name: Windows (x64)
+    needs: model
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: demucs-model
+          path: model
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 \
+            -DAM_MODEL_FILE="$GITHUB_WORKSPACE/model/$MODEL_FILE"
+
+      - name: Build
+        run: |
+          cmake --build build --config Release --parallel 4 --target AlphaMonsterMaster_VST3 AlphaMonsterMaster_Standalone AlphaMonsterMix am_analyze am_separate am_snapshot
+
+      - name: Test - analysis engine and AI separation
+        shell: bash
+        run: |
+          python -m pip install --quiet numpy scipy
+          python Tools/make_test_audio.py testaudio
+          build/Tools/am_analyze_artefacts/Release/am_analyze.exe testaudio/ref_master.wav testaudio/my_mix.wav
+          build/Tools/am_separate_artefacts/Release/am_separate.exe "model/$MODEL_FILE" testaudio/ref_master.wav sep 2
+          ls -la sep
+
+      - name: Test - UI snapshots
+        shell: bash
+        run: |
+          build/Tools/am_snapshot_artefacts/Release/am_snapshot.exe shots testaudio/ref_master.wav testaudio/my_mix.wav > shots-report.txt
+          tail -20 shots-report.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-windows
+          path: shots
+
+      - name: Validate VST3 (pluginval)
+        shell: bash
+        run: |
+          curl -L --fail -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+          7z x -y pluginval.zip > /dev/null
+          ./pluginval.exe --strictness-level 5 --skip-gui-tests --validate-in-process \
+            --validate "build/Source/MasterPlugin/AlphaMonsterMaster_artefacts/Release/VST3/Alpha Monster Master.vst3"
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path CMakeLists.txt -Pattern 'project\(AlphaMonster VERSION ([0-9.]+)').Matches[0].Groups[1].Value
+          ./installer/windows/package.ps1 -Version $version
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha-monster-windows
+          path: dist/*
+
+  # ---------------------------------------------------------------------------
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ macos, windows ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect files
+        run: |
+          mkdir -p release
+          cp artifacts/alpha-monster-macos/* release/
+          cp artifacts/alpha-monster-windows/* release/
+          cp artifacts/screenshots-macos/shots/*.png release/ || true
+          ls -la release
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --title "Alpha Monster $GITHUB_REF_NAME" \
+            --notes-file docs/RELEASE_NOTES.md \
+            || gh release upload "$GITHUB_REF_NAME" release/* --clobber
