@@ -8,6 +8,8 @@
 namespace am
 {
 
+class ReferenceStrip;
+
 /** Fixed-size (1180 x 720) control surface, scaled to the editor size. */
 class MasterSurface : public juce::Component,
                       public juce::FileDragAndDropTarget,
@@ -42,12 +44,15 @@ private:
     void status (const juce::String& line);
 
     MasterProcessor& proc;
+    std::unique_ptr<ReferenceStrip> refStrip;
 
     // header
     juce::TextButton loadRefButton { "CARICA REF" }, learnButton { "LEARN" }, analyseButton { "ANALIZZA FILE" },
                      abButton { "ASCOLTA REF" };
     TerminalScreen refName;
-    juce::Slider inKnob, outKnob, mixKnob;
+    juce::Slider inKnob, outKnob, mixKnob, boostKnob;
+    juce::TextButton bypassButton { "BYPASS" };
+    bool refStripPeaksMissing = true;
 
     // reference panel
     ModulePanel refPanel { "Reference" };

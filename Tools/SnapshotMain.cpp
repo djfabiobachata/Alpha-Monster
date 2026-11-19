@@ -71,6 +71,8 @@ int main (int argc, char* argv[])
             if ((pos / 512) % 8 == 0) pump (1);
         }
         proc.matchLoudnessNow();
+        if (auto* b = proc.params.getParameter ("boost")) b->setValueNotifyingHost (0.3f);
+        proc.setRefPositionSec (11.0);
         for (int pos = 0; pos + 512 <= total; pos += 512)
         {
             block.copyFrom (0, 0, own.buffer, 0, pos, 512);
@@ -85,6 +87,52 @@ int main (int argc, char* argv[])
         std::cout << "out integrated " << proc.getOutputIntegratedLufs() << " ref " << proc.getReference().integratedLufs
                   << " drive " << proc.params.getRawParameterValue ("drive")->load() << std::endl;
         surface.setLookAndFeel (nullptr);
+    }
+
+    // ---------------------------------------------------------------- Master DSP self-test
+    {
+        auto run = [] (bool bypass, float boost, double& rmsIn, double& rmsOut, double& maxErr)
+        {
+            am::MasterProcessor p;
+            p.setPlayConfigDetails (2, 2, 44100.0, 512);
+            p.prepareToPlay (44100.0, 512);
+            p.params.getParameter ("bypass")->setValueNotifyingHost (bypass ? 1.0f : 0.0f);
+            p.params.getParameter ("boost")->setValueNotifyingHost (boost);
+            const int lat = p.getLatencySamples();
+            juce::Random rnd (3);
+            std::vector<float> inHist;
+            juce::MidiBuffer midi;
+            juce::AudioBuffer<float> b (2, 512);
+            double si = 0, so = 0; maxErr = 0; int cnt = 0;
+            for (int k = 0; k < 200; ++k)
+            {
+                for (int i = 0; i < 512; ++i)
+                {
+                    const float x = 0.03f * (rnd.nextFloat() * 2.0f - 1.0f);
+                    b.setSample (0, i, x); b.setSample (1, i, x * 0.8f);
+                    inHist.push_back (x);
+                }
+                p.processBlock (b, midi);
+                if (k < 20) continue;
+                for (int i = 0; i < 512; ++i)
+                {
+                    const size_t idx = (size_t) (k * 512 + i);
+                    const float ref = idx >= (size_t) lat ? inHist[idx - (size_t) lat] : 0.0f;
+                    si += ref * ref; so += b.getSample (0, i) * b.getSample (0, i); ++cnt;
+                    maxErr = juce::jmax (maxErr, (double) std::abs (b.getSample (0, i) - ref));
+                }
+            }
+            rmsIn = std::sqrt (si / cnt); rmsOut = std::sqrt (so / cnt);
+        };
+        double i0, o0, e0, i1, o1, e1, i2, o2, e2;
+        run (true, 0.0f, i0, o0, e0);      // bypass: output == delayed input
+        run (false, 0.0f, i1, o1, e1);     // processing, no boost
+        run (false, 1.0f, i2, o2, e2);     // full boost
+        const double boostDb = 20.0 * std::log10 (o2 / o1);
+        const bool ok = e0 < 1.0e-5 && boostDb > 3.0 && boostDb < 7.0;
+        std::cout << "master dsp test: " << (ok ? "OK" : "FAILED") << "  bypass max error " << e0
+                  << "  boost gain " << boostDb << " dB" << std::endl;
+        if (! ok) return 6;
     }
 
 #if AM_SNAPSHOT_MIX
@@ -131,6 +179,7 @@ int main (int argc, char* argv[])
     }
     {
         am::setEnglish (true);
+        am::theme::useMixPalette();
         am::AlphaLookAndFeel lnf;
         juce::LookAndFeel::setDefaultLookAndFeel (&lnf);
         am::MixMainComponent mix;

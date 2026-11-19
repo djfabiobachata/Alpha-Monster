@@ -1,6 +1,7 @@
 #include "MasterProcessor.h"
 #include "MasterEditor.h"
 #include "Analysis/AudioFileUtils.h"
+#include "UI/AlphaLookAndFeel.h"
 
 namespace am
 {
@@ -10,7 +11,8 @@ namespace ids
     static const juce::String input = "input", eqAmount = "eqAmount", compAmount = "compAmount",
                               widthAmount = "widthAmount", drive = "drive", ceiling = "ceiling",
                               output = "output", mix = "mix", eqOn = "eqOn", compOn = "compOn",
-                              widthOn = "widthOn", limOn = "limOn", bassMono = "bassMono";
+                              widthOn = "widthOn", limOn = "limOn", bassMono = "bassMono",
+                              bypass = "bypass", boost = "boost";
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout MasterProcessor::createLayout()
@@ -45,6 +47,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout MasterProcessor::createLayou
     l.add (onOff (ids::widthOn, "Width On", true));
     l.add (onOff (ids::limOn, "Limiter On", true));
     l.add (onOff (ids::bassMono, "Bass Mono", false));
+    l.add (pct (ids::boost, "Boost", 0.0f));
+    l.add (onOff (ids::bypass, "Bypass", false));
     return l;
 }
 
@@ -53,6 +57,7 @@ MasterProcessor::MasterProcessor()
                                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       params (*this, nullptr, "AlphaMonsterMaster", createLayout())
 {
+    theme::useMasterPalette();   // graphite / orange / cyan: tells it apart from Alpha Monster Mix
     for (auto& s : sideBaseDb) s.store (0.0f);
     learnL.resize ((size_t) learnFifo.getTotalSize());
     learnR.resize ((size_t) learnFifo.getTotalSize());
@@ -91,8 +96,11 @@ void MasterProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
     dryDelay.setDelay ((float) limiter.getLatencySamples());
     dryBuffer.setSize (2, blockSize);
 
-    for (auto* s : { &inGain, &driveGain, &outGain, &mixAmt })
+    for (auto* s : { &inGain, &driveGain, &outGain, &mixAmt, &boostAmt, &bypassAmt })
         s->reset (fs, 0.03);
+    bypassAmt.reset (fs, 0.02);
+    boostAmt.reset (fs, 0.05);
+    boostCurve.resize ((size_t) blockSize);
 
     outLoudness.prepare (fs, 2);
     learnAnalyzer.prepare (fs, false);
@@ -106,6 +114,7 @@ void MasterProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
             refAudio = resample (refAudio, refAudioRate, fs);
             refAudioRate = fs;
             refPlayPos = 0;
+            computeRefPeaks();
         }
     }
 }
@@ -136,6 +145,20 @@ void MasterProcessor::processSlice (juce::AudioBuffer<float>& buffer)
     driveGain.setTargetValue (juce::Decibels::decibelsToGain (p (ids::drive)));
     outGain.setTargetValue (juce::Decibels::decibelsToGain (p (ids::output)));
     mixAmt.setTargetValue (p (ids::mix) * 0.01f);
+    boostAmt.setTargetValue (p (ids::boost) * 0.01f);
+    bypassAmt.setTargetValue (p (ids::bypass) > 0.5f ? 1.0f : 0.0f);
+
+    // dry path, before any processing (latency aligned): used by MIX and BYPASS
+    for (int ch = 0; ch < 2; ++ch)
+    {
+        const float* src = buffer.getReadPointer (juce::jmin (ch, nCh - 1));
+        float* d = dryBuffer.getWritePointer (ch);
+        for (int i = 0; i < n; ++i)
+        {
+            dryDelay.pushSample (ch, src[i]);
+            d[i] = dryDelay.popSample (ch);
+        }
+    }
 
     // input gain
     {
@@ -159,18 +182,6 @@ void MasterProcessor::processSlice (juce::AudioBuffer<float>& buffer)
         if (n1 > 0) { std::copy (inL, inL + n1, learnL.begin() + s1); std::copy (inR, inR + n1, learnR.begin() + s1); }
         if (n2 > 0) { std::copy (inL + n1, inL + n1 + n2, learnL.begin() + s2); std::copy (inR + n1, inR + n1 + n2, learnR.begin() + s2); }
         learnFifo.finishedWrite (n1 + n2);
-    }
-
-    // dry path (latency aligned)
-    for (int ch = 0; ch < 2; ++ch)
-    {
-        const float* src = buffer.getReadPointer (juce::jmin (ch, nCh - 1));
-        float* d = dryBuffer.getWritePointer (ch);
-        for (int i = 0; i < n; ++i)
-        {
-            dryDelay.pushSample (ch, src[i]);
-            d[i] = dryDelay.popSample (ch);
-        }
     }
 
     // work in stereo
@@ -214,6 +225,24 @@ void MasterProcessor::processSlice (juce::AudioBuffer<float>& buffer)
         width.process (work);
     }
 
+    // BOOST: up to +6 dB of level plus soft (tanh) saturation, to taste
+    if (boostAmt.isSmoothing() || boostAmt.getTargetValue() > 0.0005f)
+    {
+        for (int i = 0; i < n; ++i) boostCurve[(size_t) i] = boostAmt.getNextValue();
+        for (int ch = 0; ch < work.getNumChannels(); ++ch)
+        {
+            float* d = work.getWritePointer (ch);
+            for (int i = 0; i < n; ++i)
+            {
+                const float s = boostCurve[(size_t) i];
+                const float k = 1.0f + 4.0f * s;
+                const float x = d[i] * juce::Decibels::decibelsToGain (6.0f * s);
+                d[i] = x + s * (std::tanh (k * x) / k - x);
+            }
+        }
+    }
+    else boostAmt.skip (n);
+
     {
         auto start = driveGain.getCurrentValue();
         driveGain.skip (n);
@@ -247,6 +276,23 @@ void MasterProcessor::processSlice (juce::AudioBuffer<float>& buffer)
     }
     mixAmt.skip (n);
 
+    // BYPASS: click-free crossfade to the untouched (latency aligned) input
+    if (bypassAmt.isSmoothing() || bypassAmt.getTargetValue() > 0.5f)
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            const float b = bypassAmt.getNextValue();
+            for (int ch = 0; ch < juce::jmin (nCh, 2); ++ch)
+            {
+                const float wet = work.getSample (ch, i);
+                work.setSample (ch, i, wet + (dryBuffer.getSample (ch, i) - wet) * b);
+            }
+        }
+        meters.compGr.store (0.0f);
+        meters.limGr.store (0.0f);
+    }
+    else bypassAmt.skip (n);
+
     // A/B: reference playback replaces the output
     if (listenRef.load())
     {
@@ -254,12 +300,14 @@ void MasterProcessor::processSlice (juce::AudioBuffer<float>& buffer)
         if (sl.isLocked() && refAudio.getNumSamples() > 0)
         {
             const int len = refAudio.getNumSamples();
+            int pos = juce::jlimit (0, len - 1, refPlayPos.load());
             for (int i = 0; i < n; ++i)
             {
                 for (int ch = 0; ch < juce::jmin (nCh, 2); ++ch)
-                    work.setSample (ch, i, refAudio.getSample (ch, refPlayPos));
-                refPlayPos = (refPlayPos + 1) % len;
+                    work.setSample (ch, i, refAudio.getSample (ch, pos));
+                pos = (pos + 1) % len;
             }
+            refPlayPos.store (pos);
         }
     }
 
@@ -424,6 +472,7 @@ void MasterProcessor::loadReferenceFile (const juce::File& file)
             refAudio = std::move (playback);
             refAudioRate = hostRate;
             refPlayPos = 0;
+            computeRefPeaks();
         }
         busy.store (false);
         triggerAsyncUpdate();
@@ -453,6 +502,51 @@ void MasterProcessor::analyseOwnTrackFile (const juce::File& file)
         busy.store (false);
         triggerAsyncUpdate();
     });
+}
+
+void MasterProcessor::computeRefPeaks()
+{
+    // called with refAudioLock held
+    std::vector<float> pk (1500, 0.0f);
+    const int n = refAudio.getNumSamples();
+    if (n > 0)
+    {
+        const double per = (double) n / (double) pk.size();
+        const int stride = juce::jmax (1, (int) (per / 128.0));
+        for (size_t b = 0; b < pk.size(); ++b)
+        {
+            const int s0 = (int) (b * per), s1 = juce::jmin (n, (int) ((b + 1) * per));
+            float m = 0.0f;
+            for (int i = s0; i < s1; i += stride)
+                m = juce::jmax (m, std::abs (refAudio.getSample (0, i)), std::abs (refAudio.getSample (1, i)));
+            pk[b] = m;
+        }
+    }
+    const juce::ScopedLock sl (peaksLock);
+    refPeaks = std::move (pk);
+    refLengthSamples.store (n);
+}
+
+std::vector<float> MasterProcessor::getReferencePeaks() const
+{
+    const juce::ScopedLock sl (peaksLock);
+    return refPeaks;
+}
+
+double MasterProcessor::getRefLengthSec() const noexcept
+{
+    return refAudioRate > 0.0 ? refLengthSamples.load() / refAudioRate : 0.0;
+}
+
+double MasterProcessor::getRefPositionSec() const noexcept
+{
+    return refAudioRate > 0.0 ? refPlayPos.load() / refAudioRate : 0.0;
+}
+
+void MasterProcessor::setRefPositionSec (double s)
+{
+    const int len = refLengthSamples.load();
+    if (len > 0) refPlayPos.store (juce::jlimit (0, len - 1, (int) (s * refAudioRate)));
 }
 
 bool MasterProcessor::hasReferenceAudio() const
@@ -600,6 +694,7 @@ void MasterProcessor::setStateInformation (const void* data, int size)
                 refAudio = std::move (loaded.buffer);
                 refAudioRate = hostRate;
                 refPlayPos = 0;
+                computeRefPeaks();
             }
         });
     }

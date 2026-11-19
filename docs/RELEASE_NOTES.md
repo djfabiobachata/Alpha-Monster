@@ -1,15 +1,22 @@
-## Alpha Monster 1.0.0
+## Alpha Monster 1.1.0
 
 **English** · [Italiano](#italiano)
 
-First release.
+### New in 1.1.0 - Alpha Monster Master
+
+- **Reference waveform** under the VU meter: click anywhere to listen to the reference from that point.
+- **BOOST** knob: adds level (up to +6 dB) and soft saturation, to taste.
+- **BYPASS** (also exposed to the DAW as the plug-in bypass), latency-compensated and click-free.
+- New graphite / orange / cyan look, different from Alpha Monster Mix.
+
+### Also included (1.0.0)
 
 ### Downloads
 
 | System | File |
 |---|---|
-| macOS 10.15+ (Apple Silicon + Intel) | `AlphaMonster-1.0.0-macOS.pkg` (installer) or `.zip` |
-| Windows 10/11 64-bit | `AlphaMonster-1.0.0-Windows-Setup.exe` (installer) or `.zip` |
+| macOS 10.15+ (Apple Silicon + Intel) | `AlphaMonster-1.1.0-macOS.pkg` (installer) or `.zip` |
+| Windows 10/11 64-bit | `AlphaMonster-1.1.0-Windows-Setup.exe` (installer) or `.zip` |
 
 Instructions: [docs/INSTALL.md](https://github.com/djfabiobachata/Alpha-Monster/blob/main/docs/INSTALL.md). The packages are not signed with Apple/Microsoft certificates: on first launch use **right-click → Open** on macOS and **Run anyway** on Windows.
 
@@ -25,12 +32,13 @@ Instructions: [docs/INSTALL.md](https://github.com/djfabiobachata/Alpha-Monster/
 
 ### Italiano
 
-Prima versione.
+**Novità 1.1.0 - Alpha Monster Master:** forma d'onda del reference sotto il VU meter (clic per ascoltare da un punto preciso), manopola **BOOST** (volume fino a +6 dB e saturazione morbida), **BYPASS** compensato in latenza, nuova grafica grigio / arancio / ciano.
+
 
 | Sistema | File |
 |---|---|
-| macOS 10.15+ (Apple Silicon + Intel) | `AlphaMonster-1.0.0-macOS.pkg` (installer) oppure `.zip` |
-| Windows 10/11 64 bit | `AlphaMonster-1.0.0-Windows-Setup.exe` (installer) oppure `.zip` |
+| macOS 10.15+ (Apple Silicon + Intel) | `AlphaMonster-1.1.0-macOS.pkg` (installer) oppure `.zip` |
+| Windows 10/11 64 bit | `AlphaMonster-1.1.0-Windows-Setup.exe` (installer) oppure `.zip` |
 
 Le istruzioni sono in [docs/INSTALLAZIONE.md](https://github.com/djfabiobachata/Alpha-Monster/blob/main/docs/INSTALLAZIONE.md). I pacchetti non sono firmati con certificati Apple/Microsoft: al primo avvio serve **clic destro → Apri** su macOS ed **Esegui comunque** su Windows.
 

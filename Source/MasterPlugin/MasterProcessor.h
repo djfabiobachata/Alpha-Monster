@@ -67,6 +67,14 @@ public:
     bool isListeningToReference() const noexcept { return listenRef.load(); }
     bool hasReferenceAudio() const;
 
+    // reference strip (waveform + playhead for A/B listening)
+    std::vector<float> getReferencePeaks() const;
+    double getRefLengthSec() const noexcept;
+    double getRefPositionSec() const noexcept;
+    void setRefPositionSec (double seconds);
+
+    juce::AudioProcessorParameter* getBypassParameter() const override { return params.getParameter ("bypass"); }
+
     // meters
     struct Meters
     {
@@ -98,7 +106,8 @@ private:
     TruePeakLimiter limiter;
     juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::None> dryDelay { 1 << 15 };
     juce::AudioBuffer<float> dryBuffer;
-    juce::SmoothedValue<float> inGain, driveGain, outGain, mixAmt;
+    juce::SmoothedValue<float> inGain, driveGain, outGain, mixAmt, boostAmt, bypassAmt;
+    std::vector<float> boostCurve;
     LoudnessMeter outLoudness;
     std::atomic<bool> resetMeterRequested { false };
 
@@ -129,7 +138,10 @@ private:
     juce::SpinLock refAudioLock;
     juce::AudioBuffer<float> refAudio, pendingRefAudio;
     double refAudioRate = 0.0;
-    int refPlayPos = 0;
+    std::atomic<int> refPlayPos { 0 }, refLengthSamples { 0 };
+    juce::CriticalSection peaksLock;
+    std::vector<float> refPeaks;
+    void computeRefPeaks();
     std::atomic<bool> listenRef { false };
 
     // scope

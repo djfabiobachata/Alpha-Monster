@@ -49,4 +49,4 @@ Insert it as the last plug-in on the master bus. Then:
 3. **MATCH** during playback;
 4. adjust **Match EQ**, **Glue**, **Width** and **Ceiling** by ear.
 
-Use **ASCOLTA REF** (listen to reference) for A/B comparison.
+Use **ASCOLTA REF** (listen to reference) for A/B comparison, and click the reference waveform under the VU meter to listen from a specific point. **BOOST** adds level and saturation to taste; **BYPASS** compares with the original.

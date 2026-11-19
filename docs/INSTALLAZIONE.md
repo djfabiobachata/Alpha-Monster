@@ -49,4 +49,4 @@ Inseriscilo come ultimo plugin sul bus master. Poi:
 3. **MATCH** durante la riproduzione;
 4. regola **Match EQ**, **Glue**, **Width** e **Ceiling** a orecchio.
 
-Usa **ASCOLTA REF** per il confronto A/B.
+Usa **ASCOLTA REF** per il confronto A/B e clicca sulla forma d'onda del reference sotto il VU meter per ascoltarlo da un punto preciso. **BOOST** aggiunge volume e saturazione a gusto; **BYPASS** confronta con l'originale.

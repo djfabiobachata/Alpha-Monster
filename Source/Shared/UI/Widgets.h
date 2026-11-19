@@ -53,7 +53,7 @@ public:
     void clear() { lines.clear(); repaint(); }
     void paint (juce::Graphics&) override;
     float fontHeight = 14.0f;
-    juce::Colour textColour { 0xffffc98a };
+    juce::Colour textColour = theme::terminalText;
 
 private:
     juce::StringArray lines;

@@ -4,6 +4,28 @@
 namespace am
 {
 
+void theme::useMixPalette()
+{
+    body = juce::Colour (0xff4a5262); bodyDark = juce::Colour (0xff363c49); bodyLight = juce::Colour (0xff5f6879); headerBg = juce::Colour (0xff2b303b);
+    panel = juce::Colour (0xff7b2225); panelDark = juce::Colour (0xff5a171a); panelLight = juce::Colour (0xff983036);
+    panelEdge = juce::Colour (0xff230f11); panelTitle = juce::Colour (0xff651b1e);
+    cream = juce::Colour (0xffeee3c9); creamDark = juce::Colour (0xffc5b99f);
+    orange = juce::Colour (0xfff0883a); amber = juce::Colour (0xffffb648);
+    segOn = juce::Colour (0xffff3b2b); segOff = juce::Colour (0xff3b0e0b); displayBg = juce::Colour (0xff150606);
+    pointer = juce::Colour (0xffd93225); terminalText = juce::Colour (0xffffc98a);
+}
+
+void theme::useMasterPalette()
+{
+    body = juce::Colour (0xff3d4046); bodyDark = juce::Colour (0xff2a2c31); bodyLight = juce::Colour (0xff50545c); headerBg = juce::Colour (0xff1e2024);
+    panel = juce::Colour (0xff5b6069); panelDark = juce::Colour (0xff42464d); panelLight = juce::Colour (0xff737882);
+    panelEdge = juce::Colour (0xff17181b); panelTitle = juce::Colour (0xff30333a);
+    cream = juce::Colour (0xffecebe6); creamDark = juce::Colour (0xffb7b6b0);
+    orange = juce::Colour (0xffff8a24); amber = juce::Colour (0xffffa94a);
+    segOn = juce::Colour (0xff35e8da); segOff = juce::Colour (0xff0a2a29); displayBg = juce::Colour (0xff041211);
+    pointer = juce::Colour (0xffff8a24); terminalText = juce::Colour (0xff86ece2);
+}
+
 juce::Colour theme::stemColour (int index)
 {
     static const juce::Colour c[] = {
@@ -331,7 +353,7 @@ void AlphaLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int w,
     const juce::Point<float> a2 (c.x + std::sin (valueAngle) * p2, c.y - std::cos (valueAngle) * p2);
     g.setColour (juce::Colours::black.withAlpha (0.4f));
     g.drawLine ({ a1.translated (0.6f, 1.0f), a2.translated (0.6f, 1.0f) }, small ? 2.6f : 3.6f);
-    g.setColour (theme::segOn.darker (0.15f));
+    g.setColour (theme::pointer);
     g.drawLine ({ a1, a2 }, small ? 2.2f : 3.0f);
 }
 

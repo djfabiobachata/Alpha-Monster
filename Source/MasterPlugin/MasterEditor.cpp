@@ -24,7 +24,95 @@ namespace
 }
 
 //==============================================================================
-MasterSurface::MasterSurface (MasterProcessor& p) : proc (p)
+/** Small waveform of the reference: click to listen from that point. */
+class ReferenceStrip : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    explicit ReferenceStrip (MasterProcessor& p) : proc (p)
+    {
+        setTooltip ("Clicca per ascoltare il reference da quel punto (attiva ASCOLTA REF). "
+                    "Il reference suona mentre la DAW e' in riproduzione.");
+    }
+
+    void refreshPeaks() { peaks = proc.getReferencePeaks(); image = {}; repaint(); }
+
+    void paint (juce::Graphics& g) override
+    {
+        auto r = getLocalBounds().toFloat();
+        g.setColour (juce::Colour (0xff1c1d21));
+        g.fillRoundedRectangle (r, 4.0f);
+        auto glass = r.reduced (3.0f);
+        g.setColour (theme::displayBg);
+        g.fillRoundedRectangle (glass, 3.0f);
+
+        const double len = proc.getRefLengthSec();
+        if (peaks.empty() || len <= 0.0)
+        {
+            g.setFont (fonts::mono (12.0f));
+            g.setColour (theme::creamDark);
+            g.drawText ("REFERENCE: carica un file", glass, juce::Justification::centred, false);
+            return;
+        }
+
+        const int w = (int) glass.getWidth(), h = (int) glass.getHeight();
+        if (image.isNull() || image.getWidth() != w || image.getHeight() != h)
+        {
+            image = juce::Image (juce::Image::ARGB, w, h, true);
+            juce::Graphics ig (image);
+            const float mid = h * 0.5f;
+            const int nb = (int) peaks.size();
+            ig.setColour (theme::segOn.withAlpha (0.85f));
+            for (int x = 0; x < w; ++x)
+            {
+                const int b0 = x * nb / w, b1 = juce::jmax (b0 + 1, (x + 1) * nb / w);
+                float m = 0.0f;
+                for (int b = b0; b < juce::jmin (nb, b1); ++b) m = juce::jmax (m, peaks[(size_t) b]);
+                const float a = juce::jmin (1.0f, m) * (mid - 1.0f);
+                ig.drawVerticalLine (x, mid - a, mid + a + 1.0f);
+            }
+        }
+        const bool listening = proc.isListeningToReference();
+        g.setOpacity (listening ? 1.0f : 0.55f);
+        g.drawImageAt (image, (int) glass.getX(), (int) glass.getY());
+        g.setOpacity (1.0f);
+
+        const double pos = proc.getRefPositionSec();
+        const float px = glass.getX() + (float) (pos / len) * glass.getWidth();
+        g.setColour (theme::orange);
+        g.drawLine (px, glass.getY(), px, glass.getBottom(), 2.0f);
+
+        auto t = [] (double sec) { return juce::String ((int) sec / 60) + ":" + juce::String ((int) sec % 60).paddedLeft ('0', 2); };
+        g.setFont (fonts::mono (11.0f));
+        g.setColour (theme::cream);
+        g.drawText (t (pos) + " / " + t (len), glass.reduced (4.0f, 1.0f), juce::Justification::topRight, false);
+        g.setColour (listening ? theme::orange : theme::creamDark);
+        g.drawText (listening ? "IN ASCOLTO: REF" : "REF", glass.reduced (4.0f, 1.0f), juce::Justification::topLeft, false);
+    }
+
+    void mouseDown (const juce::MouseEvent& e) override { seek (e.x); }
+    void mouseDrag (const juce::MouseEvent& e) override { seek (e.x); }
+
+    std::function<void()> onSeek;
+
+private:
+    void seek (int x)
+    {
+        const double len = proc.getRefLengthSec();
+        if (len <= 0.0) return;
+        proc.setRefPositionSec (juce::jlimit (0.0, 1.0, (double) (x - 3) / juce::jmax (1, getWidth() - 6)) * len);
+        proc.setListenToReference (true);
+        if (onSeek) onSeek();
+        repaint();
+    }
+
+    MasterProcessor& proc;
+    std::vector<float> peaks;
+    juce::Image image;
+};
+
+//==============================================================================
+MasterSurface::MasterSurface (MasterProcessor& p)
+    : proc (p), refStrip (std::make_unique<ReferenceStrip> (p))
 {
     setSize (baseWidth, baseHeight);
 
@@ -75,6 +163,15 @@ MasterSurface::MasterSurface (MasterProcessor& p) : proc (p)
     setupKnob (inKnob, "input", "Guadagno d'ingresso");
     setupKnob (outKnob, "output", "Livello d'uscita (dopo il limiter)");
     setupKnob (mixKnob, "mix", "Dry/Wet");
+    setupKnob (boostKnob, "boost", "BOOST: aggiunge volume (fino a +6 dB) e saturazione morbida, a gusto personale");
+
+    bypassButton.setClickingTogglesState (true);
+    bypassButton.setTooltip ("Bypass: ascolta il segnale originale (compensato in latenza)");
+    addAndMakeVisible (bypassButton);
+    buttonAttachments.push_back (std::make_unique<ButtonAttachment> (proc.params, "bypass", bypassButton));
+
+    refStrip->onSeek = [this] { abButton.setToggleState (true, juce::dontSendNotification); };
+    addAndMakeVisible (*refStrip);
 
     addAndMakeVisible (refPanel);
     for (auto* d : { &refLufs, &refTp, &refLra, &refPlr })
@@ -146,7 +243,8 @@ MasterSurface::MasterSurface (MasterProcessor& p) : proc (p)
     fftData.assign (16384, 0.0f);
     liveBands.fill (-100.0f);
 
-    proc.onProfilesChanged = [this] { updateProfiles(); };
+    refStrip->toFront (false);   // above the Loudness panel
+    proc.onProfilesChanged = [this] { updateProfiles(); refStripPeaksMissing = true; };
     updateProfiles();
     startTimerHz (30);
 }
@@ -194,9 +292,10 @@ void MasterSurface::paint (juce::Graphics& g)
     AlphaLookAndFeel::drawLogo (g, juce::Rectangle<float> (18.0f, 14.0f, 380.0f, 50.0f), "Master  -  reference mastering");
 
     // knob legends in header
-    AlphaLookAndFeel::drawLegend (g, "IN", juce::Rectangle<float> (950, 8, 60, 14), juce::Justification::centred, 13.0f);
-    AlphaLookAndFeel::drawLegend (g, "OUT", juce::Rectangle<float> (1020, 8, 60, 14), juce::Justification::centred, 13.0f);
-    AlphaLookAndFeel::drawLegend (g, "MIX", juce::Rectangle<float> (1090, 8, 60, 14), juce::Justification::centred, 13.0f);
+    AlphaLookAndFeel::drawLegend (g, "BOOST", juce::Rectangle<float> (944, 8, 56, 14), juce::Justification::centred, 13.0f, theme::orange);
+    AlphaLookAndFeel::drawLegend (g, "IN", juce::Rectangle<float> (1002, 8, 56, 14), juce::Justification::centred, 13.0f);
+    AlphaLookAndFeel::drawLegend (g, "OUT", juce::Rectangle<float> (1060, 8, 56, 14), juce::Justification::centred, 13.0f);
+    AlphaLookAndFeel::drawLegend (g, "MIX", juce::Rectangle<float> (1118, 8, 56, 14), juce::Justification::centred, 13.0f);
 
     // screws
     for (auto pt : { juce::Point<float> (8, 8), juce::Point<float> ((float) baseWidth - 8, 8),
@@ -227,10 +326,12 @@ void MasterSurface::resized()
     learnButton.setBounds (536, 16, 80, 26);
     analyseButton.setBounds (622, 16, 120, 26);
     abButton.setBounds (748, 16, 110, 26);
-    refName.setBounds (420, 45, 506, 24);
-    inKnob.setBounds (950, 20, 60, 56);
-    outKnob.setBounds (1020, 20, 60, 56);
-    mixKnob.setBounds (1090, 20, 60, 56);
+    refName.setBounds (420, 45, 516, 24);
+    bypassButton.setBounds (864, 16, 72, 26);
+    boostKnob.setBounds (944, 20, 56, 56);
+    inKnob.setBounds (1002, 20, 56, 56);
+    outKnob.setBounds (1060, 20, 56, 56);
+    mixKnob.setBounds (1118, 20, 56, 56);
 
     // row 1
     refPanel.setBounds (12, 86, 290, 300);
@@ -252,15 +353,17 @@ void MasterSurface::resized()
     loudPanel.setBounds (862, 86, 306, 300);
     {
         auto c = loudPanel.getBounds().reduced (12, 8).withTrimmedTop (26);
-        needle.setBounds (c.removeFromTop (110).reduced (20, 0));
-        c.removeFromTop (8);
+        needle.setBounds (c.removeFromTop (86).reduced (34, 0));
+        c.removeFromTop (6);
+        refStrip->setBounds (c.removeFromTop (44));
+        c.removeFromTop (6);
         auto row = c.removeFromTop (58);
         const int w = row.getWidth() / 3;
         outShort.setBounds (row.removeFromLeft (w).reduced (3, 0));
         outInt.setBounds (row.removeFromLeft (w).reduced (3, 0));
         targetLufs.setBounds (row.reduced (3, 0));
-        c.removeFromTop (12);
-        auto buttons = c.removeFromTop (44);
+        c.removeFromTop (6);
+        auto buttons = c.removeFromTop (42);
         matchButton.setBounds (buttons.removeFromLeft (180).reduced (2));
         resetButton.setBounds (buttons.reduced (6, 6));
     }
@@ -415,6 +518,7 @@ void MasterSurface::updateProfiles()
     }
 
     updateSpectrum();
+    refStrip->refreshPeaks();
 }
 
 void MasterSurface::updateSpectrum()
@@ -503,6 +607,12 @@ void MasterSurface::timerCallback()
         proc.lastError.clear();
     }
     abButton.setToggleState (proc.isListeningToReference(), juce::dontSendNotification);
+    if (proc.getRefLengthSec() > 0.0 && refStripPeaksMissing)
+    {
+        refStrip->refreshPeaks();
+        refStripPeaksMissing = proc.getReferencePeaks().empty();
+    }
+    refStrip->repaint();
 
     // scope & live spectrum
     const int got = proc.readScopeSamples (fifoL.data(), fifoR.data(), (int) fifoL.size());

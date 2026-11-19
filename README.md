@@ -94,7 +94,11 @@ The Master plug-in interface is in Italian; the English meaning of each button i
    - **Limiter**: true-peak with look-ahead and 2x oversampling, adjustable ceiling (-1 dBTP by default);
    - **Drive**: proposed automatically to reach the reference loudness.
 4. **MATCH**: during playback, fine-tunes Drive until the integrated output loudness equals the reference.
-5. **ASCOLTA REF** (listen to reference): instant A/B with the reference.
+5. **ASCOLTA REF** (listen to reference): instant A/B with the reference. The **reference waveform** under the VU meter shows where you are: click any point to listen to the reference from there (it plays while the DAW is playing).
+6. **BOOST**: a "to taste" knob that adds level (up to +6 dB) and soft saturation before the limiter.
+7. **BYPASS**: compares with your original signal, latency-compensated and click-free. It is also the host bypass parameter.
+
+Alpha Monster Master uses its own graphite, orange and cyan look, so it is easy to tell apart from Alpha Monster Mix.
 
 The CRT screen shows the reference, your song, the live output and the EQ curve together. The state (reference and analysis) is saved with the DAW project.
 
@@ -256,7 +260,11 @@ Funzioni del player:
    - **Limiter**: true-peak con look-ahead e oversampling 2x, ceiling regolabile (predefinito -1 dBTP);
    - **Drive**: proposto automaticamente per raggiungere la loudness del reference.
 4. **MATCH**: durante la riproduzione affina il Drive finché la loudness integrata in uscita coincide con quella del reference.
-5. **ASCOLTA REF**: confronto A/B immediato con il reference.
+5. **ASCOLTA REF**: confronto A/B immediato con il reference. La **forma d'onda del reference** sotto il VU meter mostra dove sei: clicca un punto qualsiasi per ascoltare il reference da lì (suona mentre la DAW è in riproduzione).
+6. **BOOST**: manopola "a gusto personale" che aggiunge volume (fino a +6 dB) e saturazione morbida prima del limiter.
+7. **BYPASS**: confronto con il segnale originale, compensato in latenza e senza click. È anche il parametro di bypass per la DAW.
+
+Alpha Monster Master ha una grafica propria grigio grafite, arancio e ciano, per distinguerlo da Alpha Monster Mix.
 
 Lo schermo CRT mostra insieme reference, tuo brano, uscita in tempo reale e curva EQ. Lo stato (reference e analisi) viene salvato nel progetto della DAW.
 
