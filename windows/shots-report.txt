@@ -1,0 +1,90 @@
+wrote D:\a\Alpha-Monster\Alpha-Monster\shots\master.png
+out integrated -7.40531 ref -5.08558 drive 16.9
+master dsp test: OK  bypass max error 2.32831e-09  boost gain 5.77864 dB
+player engine test: OK  both 0.111915 noise 0.114676 solo 0.114355 silent 0 tone 0.333312 first 1.99733
+ALPHA MONSTER MIX - REPORT
+Created: 19 Nov 2026 6:51:38pm
+Reference: ref_master
+
+=== REFERENCE: HOW IT IS MIXED ===
+Mix: -5.1 LUFS, true peak 0.8 dBTP, LRA 0.7 LU, Narrow stereo (16%)
+
+[DRUMS]
+  Volume: -18.5 dB relative to the mix
+  Position: C   Mono (0%)
+  Depth: Close (33%)
+  Reverb: Little reverb  RT60 ~0.6 s
+  Tone: centre 713Hz, tilt -0.7 dB/oct
+  Dynamics: crest 18.3 dB, LRA 0.1 LU
+
+[BASS]
+  Volume: -16.2 dB relative to the mix
+  Position: C   Mono (0%)
+  Depth: Close (45%)
+  Reverb: Dry
+  Tone: centre 65Hz, tilt -16.2 dB/oct
+  Dynamics: crest 4.2 dB, LRA 0.3 LU
+
+[OTHER]
+  Volume: -17.8 dB relative to the mix
+  Position: C   Wide stereo (68%)
+  Depth: Upfront (19%)
+  Reverb: Dry
+  Tone: centre 2.1kHz, tilt 2.2 dB/oct
+  Dynamics: crest 14.5 dB, LRA 0.0 LU
+
+[VOCALS]
+  Volume: -10.4 dB relative to the mix
+  Position: L 32   Medium stereo (37%)
+  Depth: Very far (84%)
+  Reverb: Lots of reverb
+  Tone: centre 362Hz, tilt -3.5 dB/oct
+  Dynamics: crest 12.3 dB, LRA 2.5 LU
+
+=== YOUR MIX: APPLIED SETTINGS ===
+Amounts: levels 100%, EQ 70%, dynamics 60%, space 100%, reverb 80%, target -16.0 LUFS
+
+Track: my_bass   (Bass -> follows Bass)
+  Fader:        -6.8 dB
+  Pan:          C -> C  (mono source)
+  Width:        unchanged
+  EQ:           no significant correction
+  Compressor:   not needed
+  Reverb:       none added
+  Result:       pan C, Mono (0%), reverb 0%, depth Close
+
+Track: my_drums   (Drums -> follows Drums)
+  Fader:        +0.5 dB
+  Pan:          C -> C  (mono source)
+  Width:        unchanged
+  EQ:           High shelf +2.2 dB @ 16kHz
+  Compressor:   not needed
+  Reverb:       none added
+  Result:       pan C, Mono (0%), reverb 17%, depth Close
+
+Track: my_keys   (Piano/Keys -> follows Other)
+  Fader:        -6.4 dB
+  Pan:          C -> C  (stereo balance)
+  Width:        side -2.9 dB (M/S)
+  EQ:           High shelf +2.1 dB @ 16kHz
+  Compressor:   not needed
+  Reverb:       none added
+  Result:       pan C, Wide stereo (67%), reverb 0%, depth Upfront
+
+Track: my_vocals   (Vocals -> follows Vocals)
+  Fader:        -7.7 dB
+  Pan:          C -> L 32  (mono source)
+  Width:        unchanged
+  EQ:           no significant correction
+  Compressor:   not needed
+  Reverb:       send -0.3 dB, decay ~1.4 s, pre-delay 20 ms, HPF 180 Hz, damping 0.68
+  Result:       pan L 32, Medium stereo (33%), reverb 75%, depth Far
+
+=== FINAL MIX ===
+Before: -11.6 LUFS, Narrow stereo (12%)
+After:  -16.0 LUFS, true peak -2.0 dBTP, Narrow stereo (21%)
+
+Tip: use Alpha Monster Master with the same reference for the final loudness.
+
+wrote D:\a\Alpha-Monster\Alpha-Monster\shots\mix.png
+wrote D:\a\Alpha-Monster\Alpha-Monster\shots\player.png
