@@ -9,8 +9,6 @@
 - **BYPASS** (also exposed to the DAW as the plug-in bypass), latency-compensated and click-free.
 - New graphite / orange / cyan look, different from Alpha Monster Mix.
 
-### Also included (1.0.0)
-
 ### Downloads
 
 | System | File |
@@ -20,7 +18,7 @@
 
 Instructions: [docs/INSTALL.md](https://github.com/djfabiobachata/Alpha-Monster/blob/main/docs/INSTALL.md). The packages are not signed with Apple/Microsoft certificates: on first launch use **right-click → Open** on macOS and **Run anyway** on Windows.
 
-### What's inside
+### What's inside (since 1.0.0)
 
 - **Alpha Monster Mix** (app, English interface): AI separation into 6 instruments (Demucs v4, model included). For each instrument it analyses level, pan, mono/stereo and width, depth, reverb, tone and dynamics. It mixes your song, from separate tracks or from a stereo mix, following the reference, and exports the mix, the processed tracks and a parameter report.
 - **Player**: waveforms of the reference, your original song and the result (mixes and single tracks/stems), play/pause, click-to-seek playhead, mute/solo per lane, A/B between sections and level match.
