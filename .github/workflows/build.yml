@@ -174,7 +174,7 @@ jobs:
 
       - name: Build
         run: |
-          cmake --build build --config Release --parallel 4 --target AlphaMonsterMaster_VST3 AlphaMonsterMaster_Standalone AlphaMonsterMix am_analyze am_separate am_separate_avx2 am_snapshot
+          cmake --build build --config Release --parallel 4 --target AlphaMonsterMaster_VST3 AlphaMonsterMaster_Standalone AlphaMonsterMix am_analyze am_separate am_snapshot
 
       - name: Test - analysis engine and AI separation
         shell: bash
@@ -184,12 +184,6 @@ jobs:
           build/Tools/am_analyze_artefacts/Release/am_analyze.exe testaudio/ref_master.wav testaudio/my_mix.wav
           build/Tools/am_separate_artefacts/Release/am_separate.exe "model/$MODEL_FILE" testaudio/ref_master.wav sep 2
           ls -la sep
-
-      - name: Test - AI separation with AVX2 (diagnostic)
-        continue-on-error: true
-        shell: bash
-        run: |
-          build/Tools/am_separate_avx2_artefacts/Release/am_separate_avx2.exe "model/$MODEL_FILE" testaudio/ref_master.wav sep_avx2 2
 
       - name: Test - UI snapshots
         shell: bash

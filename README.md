@@ -92,7 +92,7 @@ Pro Tools usa solo il formato AAX, che richiede un account sviluppatore Avid per
 Scarica l'ultima versione dalla pagina [Releases](../../releases):
 
 - **macOS**: `AlphaMonster-x.y.z-macOS.pkg` (Universal: Apple Silicon e Intel, macOS 10.15+)
-- **Windows**: `AlphaMonster-x.y.z-Windows-Setup.exe` (Windows 10/11 64 bit, CPU con AVX2)
+- **Windows**: `AlphaMonster-x.y.z-Windows-Setup.exe` (Windows 10/11 64 bit)
 
 Per i dettagli, incluso il primo avvio su macOS di un'app non firmata, vedi [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md).
 

@@ -28,14 +28,12 @@ In alternativa usa lo `.zip`: contiene gli stessi bundle da copiare a mano nelle
    - *Alpha Monster Master* standalone.
 4. Riavvia la DAW e, se serve, fai una nuova scansione dei plugin VST3.
 
-Requisito: una CPU con istruzioni AVX2, cioè qualunque Intel/AMD dal 2013-2015 in poi.
-
 ## Primo utilizzo
 
 ### Alpha Monster Mix
 
 1. **CARICA REFERENCE** (oppure trascina il file nella finestra).
-2. **ANALIZZA**: separa gli strumenti con l'IA. Su un brano di 4 minuti ci vogliono indicativamente 2-8 minuti, in base al processore.
+2. **ANALIZZA**: separa gli strumenti con l'IA. Il calcolo avviene tutto sul tuo computer (niente cloud): su un brano di 4 minuti servono indicativamente da 3 a 10 minuti, in base al processore. Su Apple Silicon è più veloce.
 3. **TRACCE SEPARATE → AGGIUNGI TRACCE** con gli stem del tuo brano, oppure **MIX STEREO → CARICA MIX STEREO**.
 4. **MIXA COME IL REFERENCE**, poi ascolta "Risultato Alpha Monster" e premi **ESPORTA**.
 5. **SALVA ANALISI** salva l'analisi del reference (file `.amref`), così puoi riusarla senza rifare la separazione.

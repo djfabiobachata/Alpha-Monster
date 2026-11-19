@@ -114,12 +114,21 @@ void MasterProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 void MasterProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
+    // some hosts send blocks larger than announced: work in slices
+    const int total = buffer.getNumSamples();
+    for (int start = 0; start < total; start += blockSize)
+    {
+        const int len = juce::jmin (blockSize, total - start);
+        juce::AudioBuffer<float> slice (buffer.getArrayOfWritePointers(), buffer.getNumChannels(), start, len);
+        processSlice (slice);
+    }
+}
+
+void MasterProcessor::processSlice (juce::AudioBuffer<float>& buffer)
+{
     const int n = buffer.getNumSamples();
     const int nCh = buffer.getNumChannels();
     if (n == 0 || nCh == 0) return;
-
-    if (n > dryBuffer.getNumSamples())
-        return; // host violated the block size contract; pass through untouched
 
     auto p = [this] (const juce::String& id) { return params.getRawParameterValue (id)->load(); };
 

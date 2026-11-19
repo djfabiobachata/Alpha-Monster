@@ -85,6 +85,7 @@ public:
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
     void handleAsyncUpdate() override;
+    void processSlice (juce::AudioBuffer<float>&);
     void recomputeTargets();
     void learnThreadLoop();
 
