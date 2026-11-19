@@ -6,7 +6,7 @@
 include(FetchContent)
 
 set(AM_JUCE_DIR    "" CACHE PATH "Local JUCE checkout (optional)")
-set(AM_EIGEN_DIR   "" CACHE PATH "Local Eigen 3.4 checkout (optional)")
+set(AM_EIGEN_DIR   "" CACHE PATH "Local Eigen checkout (optional)")
 set(AM_DEMUCS_DIR  "" CACHE PATH "Local demucs.cpp checkout (optional)")
 
 # --- JUCE 8 -----------------------------------------------------------------
@@ -20,14 +20,13 @@ else()
     FetchContent_MakeAvailable(juce)
 endif()
 
-# --- Eigen 3.4 (header only) -------------------------------------------------
+# --- Eigen (header only) - same commit demucs.cpp is developed against --------
 if(AM_EIGEN_DIR)
     set(AM_EIGEN_INCLUDE ${AM_EIGEN_DIR})
 else()
     FetchContent_Declare(eigen
         GIT_REPOSITORY https://github.com/eigen-mirror/eigen.git
-        GIT_TAG        3.4.0
-        GIT_SHALLOW    TRUE)
+        GIT_TAG        dd8c71e62852b2fe429edb6682ac91fd1c578a26)
     FetchContent_GetProperties(eigen)
     if(NOT eigen_POPULATED)
         FetchContent_Populate(eigen)
