@@ -446,11 +446,12 @@ PlayerComponent::PlayerComponent (PlaybackEngine& e) : engine (e)
     hint.setLines ({ "Click a waveform or the timeline to move the playhead.  SPACE = play/pause.",
                      "M = mute, S = solo (double-click a name to solo only that lane).  Ctrl/Cmd+click a section to combine." });
 
-    engine.onStateChange = [this]
+    juce::Component::SafePointer<PlayerComponent> safeThis (this);
+    engine.onStateChange = [safeThis]
     {
-        juce::MessageManager::callAsync ([safe = juce::Component::SafePointer<PlayerComponent> (this)]
+        juce::MessageManager::callAsync ([safeThis]
         {
-            if (safe != nullptr) safe->updateButtons();
+            if (safeThis != nullptr) safeThis->updateButtons();
         });
     };
 
