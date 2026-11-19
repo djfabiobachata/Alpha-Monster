@@ -68,5 +68,6 @@ ditto "$OUT/AU/Alpha Monster Master.component" "$ZIPROOT/Alpha Monster Master.co
 ditto "$OUT/VST3/Alpha Monster Master.vst3" "$ZIPROOT/Alpha Monster Master.vst3"
 ditto "$OUT/Standalone/Alpha Monster Master.app" "$ZIPROOT/Alpha Monster Master.app"
 ditto "$MIX" "$ZIPROOT/Alpha Monster Mix.app"
+cp docs/INSTALL.md "$ZIPROOT/README.md"
 cp docs/INSTALLAZIONE.md "$ZIPROOT/LEGGIMI.md"
 (cd "$WORK/zip" && ditto -c -k --keepParent "Alpha Monster ${VERSION} macOS" "$OLDPWD/dist/AlphaMonster-${VERSION}-macOS.zip")

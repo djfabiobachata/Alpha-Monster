@@ -1,5 +1,171 @@
 # Alpha Monster
 
+**English** · [Italiano](#italiano)
+
+**Reference-based mixing and mastering** for macOS and Windows.
+
+Give Alpha Monster a song that sounds the way you want. It separates the instruments with AI, measures how they were mixed and mastered, and moves your song towards that sound.
+
+| Product | Format | What it does |
+|---|---|---|
+| **Alpha Monster Mix** | Standalone app (macOS, Windows) | Separates the reference instruments with AI, shows the mix parameters of each instrument and mixes your song following them |
+| **Alpha Monster Master** | **VST3**, **AU** plug-in and standalone app | Analyses the mastering of the reference and applies it to your song: match EQ, glue compressor, multiband stereo image, true-peak limiter and loudness |
+
+> Mixing needs the AI separation, which takes minutes of computation: that is why it is an app and not a real-time plug-in. Mastering runs in real time inside any DAW or video editor.
+
+---
+
+## Alpha Monster Mix
+
+![Alpha Monster Mix](docs/mix.png)
+
+### What it analyses in the reference (for each instrument)
+
+Separation uses **6-source Demucs v4**: vocals, drums, bass, guitars, piano/keys and other.
+
+| Parameter | How it is measured |
+|---|---|
+| **Level** | BS.1770 loudness of the instrument relative to the mix (dB) |
+| **Pan (left/right)** | L/R energy balance converted to a pan position (constant-power law) |
+| **Mono / stereo and width** | L/R coherence per frequency: 0% = mono (even when panned), 100% = fully decorrelated |
+| **Depth** | Combination of reverb amount, transient softness and high-frequency loss |
+| **Reverb** | Decay time (RT60) after hits and note endings, tail energy, tail decorrelation |
+| **Tone** | 1/3-octave spectrum (31 bands), spectral centroid, tilt in dB/octave |
+| **Dynamics** | Crest factor, LRA, true peak |
+
+All these values are *acoustic estimates*: they describe how the instrument sounds, they do not read the plug-ins used in the original song.
+
+### Automatic mix
+
+Two ways to use it:
+
+1. **Separate tracks** (recommended): load the stems of your song. The category is guessed from the file name (`vocals.wav`, `kick.wav`, `bass.wav`...) and you can correct it.
+2. **Stereo mix**: load your finished mix. Alpha Monster separates it with AI and remixes it.
+
+For each instrument group Alpha Monster:
+
+- applies a **matching EQ** (31 bands) to get closer to the tone;
+- compresses when your instrument is more dynamic than the reference;
+- sets **pan** and **width** (M/S, or mono-compatible pseudo-stereo for mono sources), measuring the result at every step;
+- adds **reverb** until it reaches the same depth;
+- sets the **levels** to get the same balance as the reference, at the loudness you choose (pre-master, -16 LUFS by default).
+
+**EXPORT** gives you:
+
+- the mix as a 24-bit WAV;
+- every processed track;
+- a **report** with every parameter to recreate in your DAW: fader, pan, EQ, compressor, reverb (`Report mix.txt` and `Mix settings.json`).
+
+The Levels / EQ / Dynamics / Space / Reverb knobs decide how closely to follow the reference (0-100%).
+
+### Player
+
+![Player](docs/player.png)
+
+The **PLAYER** button (or **LISTEN** on each instrument) opens a window with the waveform of everything you can listen to:
+
+- **Reference**: the mix and each separated instrument;
+- **Your original song**: your mix and your tracks (or the AI-separated instruments, in stereo mix mode);
+- **Result**: the Alpha Monster mix and each processed track.
+
+Player features:
+
+- **Play / pause** with the button or the space bar.
+- **Click the waveform** or the timeline to move the playhead anywhere.
+- **M** (mute) and **S** (solo) on every lane. Double-click a name to solo only that lane.
+- **LISTEN** on a reference instrument solos it and moves the playhead to where it starts playing: no need to wait for the vocals to come in.
+- **REFERENCE / ORIGINAL / RESULT** for instant A/B. Ctrl/Cmd+click to hear more than one together.
+- **LEVEL MATCH** plays every section at the same loudness, for a fair comparison.
+
+---
+
+## Alpha Monster Master
+
+![Alpha Monster Master](docs/master.png)
+
+The Master plug-in interface is in Italian; the English meaning of each button is given below.
+
+1. **CARICA REF** (load reference): choose or drop the reference master. It measures integrated loudness, true peak, LRA, PLR, tonal curve, 3-band stereo width and correlation.
+2. **LEARN**: play your song in the DAW and press again to stop. Alternatively use **ANALIZZA FILE** (analyse file) on a bounce.
+3. The plug-in computes:
+   - **Match EQ**: 31-band correction curve, minimum phase, zero latency;
+   - **Glue Comp**: threshold and ratio set automatically from your material;
+   - **Stereo Width**: side gain for lows, mids and highs (crossovers 200 Hz / 4 kHz) to match the reference image, with a *Bass Mono* option;
+   - **Limiter**: true-peak with look-ahead and 2x oversampling, adjustable ceiling (-1 dBTP by default);
+   - **Drive**: proposed automatically to reach the reference loudness.
+4. **MATCH**: during playback, fine-tunes Drive until the integrated output loudness equals the reference.
+5. **ASCOLTA REF** (listen to reference): instant A/B with the reference.
+
+The CRT screen shows the reference, your song, the live output and the EQ curve together. The state (reference and analysis) is saved with the DAW project.
+
+### Compatibility
+
+| Format | Where it works |
+|---|---|
+| **AU** (macOS) | Logic Pro, GarageBand, Final Cut Pro, Ableton Live, Studio One, Reaper, DaVinci Resolve |
+| **VST3** (macOS and Windows) | Ableton Live, Cubase/Nuendo, FL Studio, Reaper, Studio One, Bitwig, DaVinci Resolve/Fairlight, Adobe Premiere Pro/Audition, Vegas |
+| **Standalone** | Without a DAW, with audio input |
+
+Pro Tools only supports AAX, which requires an Avid developer account for signing: it is not included.
+
+---
+
+## Download and installation
+
+Download the latest version from the [Releases](../../releases) page:
+
+- **macOS**: `AlphaMonster-x.y.z-macOS.pkg` (Universal: Apple Silicon and Intel, macOS 10.15+)
+- **Windows**: `AlphaMonster-x.y.z-Windows-Setup.exe` (Windows 10/11 64-bit)
+
+For details, including the first launch of an unsigned app on macOS, see [docs/INSTALL.md](docs/INSTALL.md).
+
+---
+
+## Building from source
+
+You need CMake 3.22+ and a C++17 compiler (Xcode 14+ on macOS, Visual Studio 2022 on Windows). Dependencies are downloaded automatically.
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+      -DAM_MODEL_FILE=/path/ggml-model-htdemucs-6s-f16.bin   # optional: bundles the AI model in the app
+cmake --build build --config Release --parallel
+```
+
+The AI model (`ggml-model-htdemucs-6s-f16.bin`) is on [Hugging Face](https://huggingface.co/datasets/Retrobear/demucs.cpp). If it is not bundled, Alpha Monster Mix offers to download it the first time.
+
+Development tools included:
+
+- `am_analyze`: prints the analysis of one or more files;
+- `am_separate`: AI separation from the command line;
+- `am_snapshot`: runs the whole workflow and saves the interfaces as PNG screenshots.
+
+Every push is built and tested by GitHub Actions on macOS and Windows: analysis, real AI separation, screenshots, `auval` and `pluginval`. Every successful build of `main` publishes, or updates, the release of the version written in `CMakeLists.txt`.
+
+### Layout
+
+```
+Source/Shared/Analysis   BS.1770 loudness, true peak, spectral/stereo/space analysis, match EQ
+Source/Shared/Dsp        compressor, multiband width, true-peak limiter
+Source/Shared/UI         Alpha Monster graphics (LookAndFeel, displays, VU, CRT)
+Source/MixApp            Alpha Monster Mix app (AI separation, automatic mix, player)
+Source/MasterPlugin      Alpha Monster Master plug-in
+Tools                    test tools
+installer                macOS (.pkg) and Windows (Inno Setup) packages
+```
+
+## Third-party licences
+
+See [THIRD_PARTY.md](THIRD_PARTY.md). Alpha Monster uses JUCE 8: distributing it as closed-source software beyond the limits of the JUCE Starter licence requires a commercial JUCE licence. Otherwise the code must be released under AGPLv3.
+
+---
+---
+
+<a id="italiano"></a>
+
+# Alpha Monster (Italiano)
+
+[English](#alpha-monster) · **Italiano**
+
 **Mixing e mastering guidati da un brano di riferimento** per macOS e Windows.
 
 Dai ad Alpha Monster un brano che suona come vorresti. Lui ne separa gli strumenti con l'IA, misura come sono stati mixati e masterizzati e porta il tuo brano verso quel suono.
@@ -113,7 +279,7 @@ Scarica l'ultima versione dalla pagina [Releases](../../releases):
 - **macOS**: `AlphaMonster-x.y.z-macOS.pkg` (Universal: Apple Silicon e Intel, macOS 10.15+)
 - **Windows**: `AlphaMonster-x.y.z-Windows-Setup.exe` (Windows 10/11 64 bit)
 
-Per i dettagli, incluso il primo avvio su macOS di un'app non firmata, vedi [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md).
+Per i dettagli, incluso il primo avvio su macOS di un'app non firmata, vedi [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md) (in inglese: [docs/INSTALL.md](docs/INSTALL.md)).
 
 ---
 
@@ -143,7 +309,7 @@ Ogni push viene compilato e testato da GitHub Actions su macOS e Windows: analis
 Source/Shared/Analysis   loudness BS.1770, true peak, analisi spettrale/stereo/spazio, match EQ
 Source/Shared/Dsp        compressore, width multibanda, limiter true-peak
 Source/Shared/UI         grafica Alpha Monster (LookAndFeel, display, VU, CRT)
-Source/MixApp            app Alpha Monster Mix (separazione IA, mix automatico)
+Source/MixApp            app Alpha Monster Mix (separazione IA, mix automatico, player)
 Source/MasterPlugin      plugin Alpha Monster Master
 Tools                    strumenti di test
 installer                pacchetti macOS (.pkg) e Windows (Inno Setup)

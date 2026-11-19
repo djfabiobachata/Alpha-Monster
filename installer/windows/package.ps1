@@ -11,6 +11,7 @@ Copy-Item -Recurse -Force "$out\VST3\Alpha Monster Master.vst3" "$stage\VST3\"
 Copy-Item -Force "$out\Standalone\Alpha Monster Master.exe" "$stage\Apps\"
 Copy-Item -Force "$mix\Alpha Monster Mix.exe" "$stage\Apps\"
 Copy-Item -Force "$mix\Models\*" "$stage\Apps\Models\"
+Copy-Item -Force "docs\INSTALL.md" "$stage\README.md"
 Copy-Item -Force "docs\INSTALLAZIONE.md" "$stage\LEGGIMI.md"
 
 Compress-Archive -Force -Path "$stage\*" -DestinationPath "dist\AlphaMonster-$Version-Windows.zip"

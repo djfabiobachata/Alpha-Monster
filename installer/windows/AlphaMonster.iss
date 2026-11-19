@@ -44,6 +44,7 @@ Source: "{#Stage}\Apps\Alpha Monster Mix.exe"; DestDir: "{app}"; Flags: ignoreve
 Source: "{#Stage}\Apps\Models\*"; DestDir: "{app}\Models"; Flags: ignoreversion; Components: mix
 Source: "{#Stage}\Apps\Alpha Monster Master.exe"; DestDir: "{app}"; Flags: ignoreversion; Components: standalone
 Source: "{#Stage}\VST3\Alpha Monster Master.vst3\*"; DestDir: "{commoncf64}\VST3\Alpha Monster Master.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: vst3
+Source: "{#Stage}\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Stage}\LEGGIMI.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
