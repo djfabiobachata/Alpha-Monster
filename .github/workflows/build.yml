@@ -234,7 +234,9 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     name: GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # every green build of main publishes (or refreshes) the release of the
+    # version written in CMakeLists.txt; pushing a v* tag works as well
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [ macos, windows ]
     runs-on: ubuntu-latest
     steps:
@@ -247,13 +249,17 @@ jobs:
           mkdir -p release
           cp artifacts/alpha-monster-macos/* release/
           cp artifacts/alpha-monster-windows/* release/
-          cp artifacts/screenshots-macos/shots/*.png release/ || true
           ls -la release
       - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/* \
-            --title "Alpha Monster $GITHUB_REF_NAME" \
-            --notes-file docs/RELEASE_NOTES.md \
-            || gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          VERSION=$(grep -m1 -E "project\(AlphaMonster VERSION" CMakeLists.txt | sed -E 's/.*VERSION ([0-9.]+).*/\1/')
+          TAG="v$VERSION"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+            gh release edit "$TAG" --notes-file docs/RELEASE_NOTES.md
+          else
+            gh release create "$TAG" release/* --target "$GITHUB_SHA" \
+              --title "Alpha Monster $VERSION" --notes-file docs/RELEASE_NOTES.md --latest
+          fi

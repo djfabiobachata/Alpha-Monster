@@ -116,7 +116,7 @@ Strumenti di sviluppo inclusi:
 - `am_separate`: separazione IA da riga di comando;
 - `am_snapshot`: esegue l'intero flusso e salva le schermate delle interfacce in PNG.
 
-Ogni push viene compilato e testato da GitHub Actions su macOS e Windows: analisi, separazione IA reale, schermate, `auval` e `pluginval`. Pubblicare un tag `v*` crea automaticamente la release.
+Ogni push viene compilato e testato da GitHub Actions su macOS e Windows: analisi, separazione IA reale, schermate, `auval` e `pluginval`. Ogni build riuscita del ramo `main` pubblica, o aggiorna, la release della versione scritta in `CMakeLists.txt`.
 
 ### Struttura
 
